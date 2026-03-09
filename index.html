@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Study Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="header">
+        <div class="header-left">
+            <button id="backBtn" class="back-btn-header" style="display: none;">&larr;</button>
+            <h1 class="header-title">My Study Dashboard</h1>
+        </div>
+        <div class="header-buttons">
+            <button id="subjectsBtn" class="top-btn">📚 Subjects</button>
+            <button id="togglePdfBtn" class="top-btn">📄 Portion</button>
+            <button id="timerBtn" class="top-btn">⏱️ Timer</button>
+            <button id="motivationBtn" class="top-btn">💡 Motivation</button>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <section id="subjectPanel">
+            <h2 class="section-title">Select Subject</h2>
+            <div id="subjectList" class="subject-list"></div>
+        </section>
+
+        <section id="subjectView" class="subject-view">
+            <div class="subject-header">
+                <h2 id="currentSubjectTitle" class="subject-title"></h2>
+            </div>
+
+            <div class="section-container">
+                <div class="section-title-bar">
+                    <h3 class="subsection-title">Portion</h3>
+                    <div class="portion-actions">
+                        <button id="uploadPortionBtn" class="small-btn">Upload Screenshots</button>
+                        <span id="portionStatus" class="portion-status"></span>
+                    </div>
+                </div>
+                <div id="portionContent" class="portion-list"></div>
+                <input id="portionFileInput" type="file" accept="image/*" multiple hidden>
+            </div>
+
+            <div class="section-container">
+                <div class="section-title-bar">
+                    <h3 class="subsection-title">Worksheets</h3>
+                </div>
+                <div id="worksheetsList" class="worksheet-list"></div>
+            </div>
+
+            <div class="section-container">
+                <div class="section-title-bar">
+                    <h3 class="subsection-title">My Study Plan</h3>
+                </div>
+                <textarea id="planEditor" class="plan-editor" placeholder="Write your study plan here..."></textarea>
+                <div class="plan-actions">
+                    <button id="savePlanBtn" class="save-btn">Save</button>
+                    <span id="saveStatus" class="save-status"></span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <aside id="pdfSidebar" class="pdf-sidebar">
+        <div class="resize-handle"></div>
+        <div class="sidebar-header">
+            <h3>Portion PDF</h3>
+            <button id="closeSidebar" class="close-sidebar-btn">&times;</button>
+        </div>
+        <iframe id="pdfFrame" class="pdf-frame"></iframe>
+    </aside>
+
+    <aside id="previewSidebar" class="preview-sidebar">
+        <div class="resize-handle-preview"></div>
+        <div class="sidebar-header">
+            <h3 id="previewTitle">Preview</h3>
+            <div class="preview-header-buttons">
+                <button id="fullscreenPreviewBtn" class="icon-btn" title="Fullscreen"></button>
+                <button id="closePreviewBtn" class="close-sidebar-btn">&times;</button>
+            </div>
+        </div>
+        <div id="previewContent" class="preview-content"></div>
+    </aside>
+
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
+    <footer class="footer">
+        My Study Dashboard
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
