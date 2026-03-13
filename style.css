@@ -706,7 +706,7 @@ body {
     z-index: 1000;
     display: flex;
     flex-direction: column;
-    overflow: auto;
+    overflow: hidden;
 }
 
 .pdf-sidebar.open {
@@ -757,6 +757,22 @@ body {
     color: var(--text-primary);
 }
 
+.sidebar-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sidebar-header-actions .small-btn {
+    padding: 4px 8px;
+    font-size: 0.8rem;
+}
+
+.sidebar-header-actions .small-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 .close-sidebar-btn {
     background: none;
     border: none;
@@ -765,6 +781,108 @@ body {
     cursor: pointer;
     padding: 4px;
     transition: color 0.2s;
+}
+
+.pdf-sidebar .portion-status {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.pdf-sidebar .portion-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: var(--bg-main);
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.pdf-sidebar .portion-item:hover {
+    border-color: var(--primary-color);
+    background: #24312c;
+}
+
+.pdf-sidebar .portion-item:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.pdf-sidebar .portion-icon {
+    font-size: 1.25rem;
+}
+
+.pdf-sidebar .portion-name {
+    flex: 1;
+    color: var(--text-primary);
+    word-break: break-word;
+    font-size: 0.9rem;
+}
+
+.pdf-sidebar .portion-type {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.pdf-sidebar .portion-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pdf-sidebar .order-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: var(--text-secondary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+}
+
+.pdf-sidebar .order-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--text-primary);
+}
+
+.pdf-sidebar .order-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.pdf-sidebar .portion-delete-btn {
+    background: transparent;
+    border: none;
+    color: #666;
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    opacity: 0.3;
+    transform: scale(0.85);
+    transition: all 0.2s ease;
+    line-height: 1;
+}
+
+.pdf-sidebar .portion-delete-btn:hover {
+    opacity: 1;
+    color: #e74c3c;
+    transform: scale(1.2);
+}
+
+.pdf-sidebar .portion-item:hover .portion-delete-btn {
+    opacity: 0.5;
+}
+
+.pdf-sidebar .portion-item:hover .portion-delete-btn:hover {
+    opacity: 1;
 }
 
 .close-sidebar-btn:hover {
@@ -778,6 +896,85 @@ body {
     min-width: 100%;
     min-height: 100%;
     pointer-events: auto;
+}
+
+.portion-sequence-viewer {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    padding: var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.portion-sequence-item {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-sm);
+    background: var(--bg-main);
+}
+
+.portion-sequence-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.portion-sequence-title {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin: 0;
+    word-break: break-word;
+}
+
+.portion-sequence-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.portion-sequence-type {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    padding: 2px 8px;
+    text-transform: uppercase;
+}
+
+.portion-sequence-actions .portion-delete-btn {
+    opacity: 0.7;
+    transform: none;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 2px 6px;
+}
+
+.portion-sequence-actions .portion-delete-btn:hover {
+    opacity: 1;
+}
+
+.portion-sequence-embed {
+    width: 100%;
+    min-height: 82vh;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: #0d0d0d;
+}
+
+.portion-sequence-image {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    display: block;
+}
+
+.portion-sequence-media {
+    width: 100%;
 }
 
 /* 

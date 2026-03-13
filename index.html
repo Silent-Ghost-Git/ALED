@@ -72,10 +72,15 @@
     <aside id="pdfSidebar" class="pdf-sidebar">
         <div class="resize-handle"></div>
         <div class="sidebar-header">
-            <h3>Portion PDF</h3>
-            <button id="closeSidebar" class="close-sidebar-btn">&times;</button>
+            <h3>Portions</h3>
+            <div class="sidebar-header-actions">
+                <button id="uploadGlobalPortionBtn" class="small-btn" title="Upload files">+</button>
+                <button id="closeSidebar" class="close-sidebar-btn">&times;</button>
+            </div>
         </div>
-        <iframe id="pdfFrame" class="pdf-frame"></iframe>
+        <span id="globalPortionStatus" class="portion-status"></span>
+        <div id="portionSequenceViewer" class="portion-sequence-viewer"></div>
+        <input id="globalPortionFileInput" type="file" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,.mp4,.webm,.ogg,.mov,.avi,.mp3,.wav,.flac,.m4a" multiple hidden>
     </aside>
 
     <aside id="previewSidebar" class="preview-sidebar">

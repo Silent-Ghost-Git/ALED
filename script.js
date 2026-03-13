@@ -13,7 +13,6 @@ const DEFAULT_SUBJECTS = [
 
 const TIMER_URL = 'https://flocus.com/online-flip-clock/';
 const MOTIVATION_URL = 'https://chatgpt.com/share/69a710ee-5b14-8000-8f33-b76daeb57578';
-const PORTION_PDF_PATH = 'data/portion.pdf';
 const STORAGE_KEY = 'currentSubjectId';
 const SUBJECT_ORDER_KEY = 'subjectOrder';
 
@@ -25,6 +24,7 @@ const portionContentEl = document.getElementById('portionContent');
 const uploadPortionBtn = document.getElementById('uploadPortionBtn');
 const portionFileInput = document.getElementById('portionFileInput');
 const portionStatusEl = document.getElementById('portionStatus');
+const pdfSidebarEl = document.getElementById('pdfSidebar');
 const worksheetsListEl = document.getElementById('worksheetsList');
 const uploadWorksheetBtn = document.getElementById('uploadWorksheetBtn');
 const worksheetFileInput = document.getElementById('worksheetFileInput');
@@ -37,11 +37,13 @@ const timerBtn = document.getElementById('timerBtn');
 const motivationBtn = document.getElementById('motivationBtn');
 const savePlanBtn = document.getElementById('savePlanBtn');
 const closeSidebarBtn = document.getElementById('closeSidebar');
-const pdfSidebarEl = document.getElementById('pdfSidebar');
 const resizeHandleEl = document.querySelector('.resize-handle');
-const pdfFrameEl = document.getElementById('pdfFrame');
 const sidebarOverlayEl = document.getElementById('sidebarOverlay');
 const saveStatusEl = document.getElementById('saveStatus');
+const uploadGlobalPortionBtn = document.getElementById('uploadGlobalPortionBtn');
+const globalPortionFileInput = document.getElementById('globalPortionFileInput');
+const globalPortionStatusEl = document.getElementById('globalPortionStatus');
+const portionSequenceViewerEl = document.getElementById('portionSequenceViewer');
 
 // Preview sidebar elements
 const previewSidebarEl = document.getElementById('previewSidebar');
@@ -61,6 +63,8 @@ const confirmOkBtn = document.getElementById('confirmOk');
 let currentSubject = null;
 let currentPortionImages = [];
 let currentWorksheets = [];
+let currentGlobalPortions = [];
+let nextSequenceIndex = 0;
 let pendingDeleteCallback = null;
 let selectedSubjectId = null;
 let subjects = loadSubjectsFromStorage();
@@ -515,12 +519,270 @@ function showSaveStatus(message, type) {
     }, 2500);
 }
 
-function openPdfSidebar() {
+async function loadGlobalPortions() {
+    portionSequenceViewerEl.innerHTML = '<p class="no-data">Loading portions...</p>';
+    globalPortionStatusEl.textContent = '';
+
+    try {
+        const response = await fetch('/api/portions');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        currentGlobalPortions = await response.json();
+        renderGlobalPortions();
+    } catch (error) {
+        console.error('Error loading portions:', error);
+        portionSequenceViewerEl.innerHTML = '<p class="no-data">Error loading portions.</p>';
+    }
+}
+
+function renderGlobalPortions() {
+    if (!currentGlobalPortions.length) {
+        portionSequenceViewerEl.innerHTML = '<p class="no-data">Upload files to start reading.</p>';
+        nextSequenceIndex = 0;
+        return;
+    }
+
+    renderPortionSequence(0);
+}
+
+function createInlineViewerElement(filePath, fileName) {
+    const safePath = String(filePath || '');
+    const ext = getFileExtension(safePath);
+
+    if (ext === 'pdf') {
+        const iframe = document.createElement('iframe');
+        iframe.src = `${safePath}#toolbar=1&navpanes=1&scrollbar=1&zoom=page-width&view=FitH`;
+        iframe.title = fileName || 'PDF preview';
+        iframe.className = 'portion-sequence-embed';
+        return iframe;
+    }
+
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
+        const image = document.createElement('img');
+        image.src = safePath;
+        image.className = 'portion-sequence-image';
+        image.alt = fileName || 'Image preview';
+        return image;
+    }
+
+    if (['mp4', 'webm', 'ogg', 'mov', 'avi'].includes(ext)) {
+        const video = document.createElement('video');
+        video.controls = true;
+        video.src = safePath;
+        video.className = 'portion-sequence-media';
+        return video;
+    }
+
+    if (['mp3', 'wav', 'flac', 'm4a'].includes(ext)) {
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.src = safePath;
+        audio.className = 'portion-sequence-media';
+        return audio;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'file-preview-text';
+
+    const message = document.createElement('p');
+    message.textContent = `Cannot preview this file type (.${ext || 'unknown'})`;
+
+    const openBtn = document.createElement('button');
+    openBtn.className = 'save-btn';
+    openBtn.textContent = 'Open in New Tab';
+    openBtn.addEventListener('click', () => window.open(safePath, '_blank'));
+
+    wrapper.appendChild(message);
+    wrapper.appendChild(openBtn);
+    return wrapper;
+}
+
+function renderPortionSequence(startIndex) {
+    portionSequenceViewerEl.innerHTML = '';
+
+    if (!currentGlobalPortions.length) {
+        portionSequenceViewerEl.innerHTML = '<p class="no-data">No portion files.</p>';
+        nextSequenceIndex = 0;
+        return;
+    }
+
+    const safeStart = Math.max(0, Math.min(startIndex, currentGlobalPortions.length - 1));
+    nextSequenceIndex = safeStart;
+    portionSequenceViewerEl.scrollTop = 0;
+    appendNextPortionToSequence();
+    maybeAppendNextPortion();
+}
+
+function appendNextPortionToSequence() {
+    if (nextSequenceIndex >= currentGlobalPortions.length) return false;
+
+    const currentIndex = nextSequenceIndex;
+    const portion = currentGlobalPortions[currentIndex];
+    nextSequenceIndex += 1;
+
+    const section = document.createElement('section');
+    section.className = 'portion-sequence-item';
+
+    const header = document.createElement('div');
+    header.className = 'portion-sequence-header';
+
+    const title = document.createElement('h4');
+    title.className = 'portion-sequence-title';
+    title.textContent = portion.name;
+
+    const actions = document.createElement('div');
+    actions.className = 'portion-sequence-actions';
+
+    const typeEl = document.createElement('span');
+    typeEl.className = 'portion-sequence-type';
+    typeEl.textContent = String(portion.type || '').toUpperCase();
+
+    const upBtn = document.createElement('button');
+    upBtn.className = 'order-btn';
+    upBtn.textContent = 'Up';
+    upBtn.disabled = currentIndex === 0;
+    upBtn.addEventListener('click', async () => {
+        await moveGlobalPortion(currentIndex, -1);
+    });
+
+    const downBtn = document.createElement('button');
+    downBtn.className = 'order-btn';
+    downBtn.textContent = 'Down';
+    downBtn.disabled = currentIndex === currentGlobalPortions.length - 1;
+    downBtn.addEventListener('click', async () => {
+        await moveGlobalPortion(currentIndex, 1);
+    });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'portion-delete-btn';
+    deleteBtn.textContent = '×';
+    deleteBtn.title = 'Delete';
+    deleteBtn.addEventListener('click', () => {
+        promptDeleteGlobalPortion(portion.name);
+    });
+
+    actions.appendChild(typeEl);
+    actions.appendChild(upBtn);
+    actions.appendChild(downBtn);
+    actions.appendChild(deleteBtn);
+    header.appendChild(title);
+    header.appendChild(actions);
+
+    section.appendChild(header);
+    section.appendChild(createInlineViewerElement(portion.url, portion.name));
+    portionSequenceViewerEl.appendChild(section);
+    return true;
+}
+
+function maybeAppendNextPortion() {
+    if (!portionSequenceViewerEl) return;
+
+    const threshold = 160;
+    if (
+        nextSequenceIndex < currentGlobalPortions.length
+        && (portionSequenceViewerEl.scrollHeight - portionSequenceViewerEl.clientHeight - portionSequenceViewerEl.scrollTop) <= threshold
+    ) {
+        appendNextPortionToSequence();
+    }
+}
+
+async function saveGlobalPortionsOrder() {
+    const order = currentGlobalPortions.map((item) => item.name);
+    const response = await fetch('/api/portions/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order })
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+    }
+}
+
+async function moveGlobalPortion(index, direction) {
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= currentGlobalPortions.length) return;
+
+    const copy = [...currentGlobalPortions];
+    const [moved] = copy.splice(index, 1);
+    copy.splice(target, 0, moved);
+    currentGlobalPortions = copy;
+    renderGlobalPortions();
+
+    try {
+        await saveGlobalPortionsOrder();
+        globalPortionStatusEl.textContent = 'Order saved.';
+    } catch (error) {
+        console.error('Error saving portions order:', error);
+        globalPortionStatusEl.textContent = 'Could not save order.';
+    }
+}
+
+async function uploadGlobalPortionFiles(fileList) {
+    const files = Array.from(fileList || []).filter((file) => file.size > 0);
+    if (!files.length) {
+        globalPortionStatusEl.textContent = 'No files selected.';
+        return;
+    }
+
+    globalPortionStatusEl.textContent = 'Uploading...';
+    try {
+        for (const file of files) {
+            const base64 = await fileToBase64(file);
+            const response = await fetch('/api/portions/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filename: file.name,
+                    file_base64: base64
+                })
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        }
+
+        globalPortionStatusEl.textContent = `Uploaded ${files.length} file(s).`;
+        await loadGlobalPortions();
+    } catch (error) {
+        console.error('Error uploading portions:', error);
+        globalPortionStatusEl.textContent = 'Upload failed.';
+    }
+}
+
+async function deleteGlobalPortion(name) {
+    if (!name) return;
+
+    try {
+        const response = await fetch('/api/portions/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: name })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+        globalPortionStatusEl.textContent = 'File deleted.';
+        await loadGlobalPortions();
+    } catch (error) {
+        console.error('Error deleting portion:', error);
+        globalPortionStatusEl.textContent = 'Delete failed.';
+    }
+}
+
+function promptDeleteGlobalPortion(name) {
+    if (!name) return;
+    confirmMessageEl.textContent = `Delete "${name}"?`;
+    confirmModalEl.classList.add('visible');
+    pendingDeleteCallback = () => deleteGlobalPortion(name);
+}
+
+async function openPdfSidebar() {
     clampSidebarWidth();
-    pdfFrameEl.src = PORTION_PDF_PATH;
     pdfSidebarEl.classList.add('open');
     updateSidebarOverlay();
     togglePdfBtn.textContent = '📄 Hide Portion';
+    await loadGlobalPortions();
 }
 
 function closePdfSidebar() {
@@ -533,7 +795,7 @@ function togglePdfSidebar() {
     if (pdfSidebarEl.classList.contains('open')) {
         closePdfSidebar();
     } else {
-        openPdfSidebar();
+        void openPdfSidebar();
     }
 }
 
@@ -568,6 +830,19 @@ function setupEventListeners() {
     });
     togglePdfBtn.addEventListener('click', togglePdfSidebar);
     closeSidebarBtn.addEventListener('click', closePdfSidebar);
+    if (uploadGlobalPortionBtn && globalPortionFileInput) {
+        uploadGlobalPortionBtn.addEventListener('click', () => {
+            globalPortionFileInput.click();
+        });
+        globalPortionFileInput.addEventListener('change', async (event) => {
+            const files = event.target.files;
+            await uploadGlobalPortionFiles(files);
+            globalPortionFileInput.value = '';
+        });
+    }
+    if (portionSequenceViewerEl) {
+        portionSequenceViewerEl.addEventListener('scroll', maybeAppendNextPortion);
+    }
     sidebarOverlayEl.addEventListener('click', () => {
         closePdfSidebar();
         closePreview();
@@ -759,7 +1034,7 @@ function openPreview(filePath, fileName) {
     previewContentEl.innerHTML = '';
 
     const safePath = String(filePath || '');
-    const ext = safePath.split(/[?#]/, 1)[0].split('.').pop().toLowerCase();
+    const ext = getFileExtension(safePath);
 
     if (ext === 'pdf') {
         const iframe = document.createElement('iframe');
@@ -778,7 +1053,7 @@ function openPreview(filePath, fileName) {
         video.autoplay = true;
         video.src = safePath;
         previewContentEl.appendChild(video);
-    } else if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) {
+    } else if (['mp3', 'wav', 'flac', 'm4a'].includes(ext)) {
         const audio = document.createElement('audio');
         audio.controls = true;
         audio.autoplay = true;
@@ -804,6 +1079,14 @@ function openPreview(filePath, fileName) {
     clampPreviewSidebarWidth();
     previewSidebarEl.classList.add('open');
     updateSidebarOverlay();
+}
+
+function getFileExtension(path) {
+    return String(path || '')
+        .split(/[?#]/, 1)[0]
+        .split('.')
+        .pop()
+        .toLowerCase();
 }
 function closePreview() {
     previewSidebarEl.classList.remove('open');
@@ -869,5 +1152,6 @@ function escapeHtml(value) {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
 
 
