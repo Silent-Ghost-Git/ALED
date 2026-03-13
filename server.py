@@ -1,4 +1,4 @@
-﻿"""
+"""
 My Study Dashboard - Custom Server
 ======================================
 This server provides API endpoints for:
@@ -31,6 +31,7 @@ SUBJECT_FOLDER_MAP = {
 }
 
 ALLOWED_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
+ALLOWED_WORKSHEET_EXTENSIONS = {'.pdf', '.docx', '.doc', '.png', '.jpg', '.jpeg', '.gif', '.webp'}
 
 
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
@@ -84,6 +85,20 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_reorder_portion_images(data)
             return
 
+        if path == '/api/worksheets/upload':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_upload_worksheet(data)
+            return
+
+        if path == '/api/worksheets/delete':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_delete_worksheet(data)
+            return
+
         self.send_error(404, 'Not Found')
 
     def read_json_body(self):
@@ -106,14 +121,26 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             return None
         return os.path.join(DIRECTORY, 'data', folder_name)
 
-    def get_portion_images_dir(self, subject):
+    def get_portion_dir(self, subject):
         data_dir = self.get_subject_data_dir(subject)
         if not data_dir:
             return None
-        return os.path.join(data_dir, 'portion_images')
+        return os.path.join(data_dir, 'portion')
+
+    def get_worksheets_dir(self, subject):
+        data_dir = self.get_subject_data_dir(subject)
+        if not data_dir:
+            return None
+        return os.path.join(data_dir, 'worksheets')
+
+    def get_plan_path(self, subject):
+        data_dir = self.get_subject_data_dir(subject)
+        if not data_dir:
+            return None
+        return os.path.join(data_dir, 'plan', 'plan.txt')
 
     def get_portion_order_path(self, subject):
-        portion_dir = self.get_portion_images_dir(subject)
+        portion_dir = self.get_portion_dir(subject)
         if not portion_dir:
             return None
         return os.path.join(portion_dir, 'order.json')
@@ -139,15 +166,17 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         }
         return mime_map.get(str(mime_type).lower(), '.png')
 
-    def unique_filename(self, directory, preferred_name):
+    def unique_filename(self, directory, preferred_name, allowed_exts=None):
         preferred = self.sanitize_filename(preferred_name)
         if not preferred:
-            preferred = f"portion_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+            preferred = f"file_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
 
         stem = Path(preferred).stem
         ext = Path(preferred).suffix.lower()
-        if ext not in ALLOWED_IMAGE_EXTENSIONS:
-            ext = '.png'
+        if allowed_exts is None:
+            allowed_exts = ALLOWED_IMAGE_EXTENSIONS
+        if ext not in allowed_exts:
+            ext = '.bin'
 
         candidate = f'{stem}{ext}'
         index = 1
@@ -181,7 +210,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
     def list_portion_images(self, subject):
         folder_name = self.get_subject_folder(subject)
-        portion_dir = self.get_portion_images_dir(subject)
+        portion_dir = self.get_portion_dir(subject)
         if not folder_name or not portion_dir:
             return []
 
@@ -206,7 +235,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
         result = []
         for name in final_names:
-            url = '/data/{}/portion_images/{}'.format(
+            url = '/data/{}/portion/{}'.format(
                 urllib.parse.quote(folder_name),
                 urllib.parse.quote(name)
             )
@@ -219,18 +248,18 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'error': 'Invalid subject'}, 400)
             return
 
-        folder_path = os.path.join(DIRECTORY, folder_name)
+        folder_path = self.get_worksheets_dir(subject)
 
         files = []
-        if os.path.isdir(folder_path):
+        if folder_path and os.path.isdir(folder_path):
             for filename in os.listdir(folder_path):
                 filepath = os.path.join(folder_path, filename)
                 if os.path.isfile(filepath):
                     ext = os.path.splitext(filename)[1].lower()
-                    if ext in ['.pdf', '.docx', '.doc', '.png', '.jpg', '.jpeg']:
+                    if ext in ALLOWED_WORKSHEET_EXTENSIONS:
                         files.append({
                             'name': filename,
-                            'file': f'{folder_name}/{filename}',
+                            'file': f'data/{folder_name}/worksheets/{filename}',
                             'type': ext[1:]
                         })
 
@@ -243,9 +272,9 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'error': 'Invalid subject'}, 400)
             return
 
-        plan_path = os.path.join(DIRECTORY, 'data', folder_name, 'plan.txt')
+        plan_path = self.get_plan_path(subject)
 
-        if os.path.isfile(plan_path):
+        if plan_path and os.path.isfile(plan_path):
             with open(plan_path, 'r', encoding='utf-8') as file:
                 content = file.read()
             self.send_json({'content': content})
@@ -261,9 +290,12 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'error': 'Invalid subject'}, 400)
             return
 
-        plan_dir = os.path.join(DIRECTORY, 'data', folder_name)
-        plan_path = os.path.join(plan_dir, 'plan.txt')
-        os.makedirs(plan_dir, exist_ok=True)
+        plan_path = self.get_plan_path(subject)
+        if not plan_path:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        os.makedirs(os.path.dirname(plan_path), exist_ok=True)
 
         with open(plan_path, 'w', encoding='utf-8') as file:
             file.write(content)
@@ -304,7 +336,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'error': 'Image too large (max 12MB)'}, 400)
             return
 
-        portion_dir = self.get_portion_images_dir(subject)
+        portion_dir = self.get_portion_dir(subject)
         os.makedirs(portion_dir, exist_ok=True)
 
         original_name = data.get('filename', '')
@@ -313,7 +345,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
         preferred_stem = Path(self.sanitize_filename(original_name)).stem
         preferred_name = f'{preferred_stem or "portion"}{ext}'
-        final_name = self.unique_filename(portion_dir, preferred_name)
+        final_name = self.unique_filename(portion_dir, preferred_name, ALLOWED_IMAGE_EXTENSIONS)
         final_path = os.path.join(portion_dir, final_name)
 
         with open(final_path, 'wb') as file:
@@ -353,6 +385,83 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
         self.write_order(subject, normalized)
         self.send_json({'success': True})
+
+    def handle_upload_worksheet(self, data):
+        subject = data.get('subject', '')
+        folder_name = self.get_subject_folder(subject)
+        if not folder_name:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        file_base64 = data.get('file_base64', '')
+        if not isinstance(file_base64, str) or not file_base64.strip():
+            self.send_json({'error': 'file_base64 is required'}, 400)
+            return
+
+        raw = file_base64.strip()
+        if ',' in raw and raw.lower().startswith('data:'):
+            raw = raw.split(',', 1)[1]
+
+        try:
+            file_bytes = base64.b64decode(raw, validate=True)
+        except (ValueError, binascii.Error):
+            self.send_json({'error': 'Invalid base64 data'}, 400)
+            return
+
+        if len(file_bytes) > 25 * 1024 * 1024:
+            self.send_json({'error': 'File too large (max 25MB)'}, 400)
+            return
+
+        worksheets_dir = self.get_worksheets_dir(subject)
+        if not worksheets_dir:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        os.makedirs(worksheets_dir, exist_ok=True)
+
+        original_name = data.get('filename', '')
+        ext = Path(original_name).suffix.lower()
+        if ext not in ALLOWED_WORKSHEET_EXTENSIONS:
+            ext = '.pdf'
+
+        preferred_stem = Path(self.sanitize_filename(original_name)).stem
+        preferred_name = f'{preferred_stem or "worksheet"}{ext}'
+
+        final_name = self.unique_filename(worksheets_dir, preferred_name, ALLOWED_WORKSHEET_EXTENSIONS)
+        final_path = os.path.join(worksheets_dir, final_name)
+
+        with open(final_path, 'wb') as file:
+            file.write(file_bytes)
+
+        self.send_json({'success': True, 'name': final_name})
+
+    def handle_delete_worksheet(self, data):
+        subject = data.get('subject', '')
+        filename = data.get('filename', '')
+
+        folder_name = self.get_subject_folder(subject)
+        if not folder_name:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        if not filename:
+            self.send_json({'error': 'filename is required'}, 400)
+            return
+
+        worksheets_dir = self.get_worksheets_dir(subject)
+        if not worksheets_dir:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        file_path = os.path.join(worksheets_dir, filename)
+        if os.path.isfile(file_path):
+            try:
+                os.remove(file_path)
+                self.send_json({'success': True})
+            except OSError as e:
+                self.send_json({'error': f'Delete failed: {str(e)}'}, 500)
+        else:
+            self.send_json({'error': 'File not found'}, 404)
 
     def send_json(self, data, status=200):
         response = json.dumps(data).encode('utf-8')

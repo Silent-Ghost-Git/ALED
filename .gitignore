@@ -3,11 +3,4 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 
-# Worksheets (subject folders)
-English/
-Hindi/
-Kannada/
-Maths/
-Science/
-SST/
 Parent*.pdf

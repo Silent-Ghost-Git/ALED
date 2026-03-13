@@ -26,6 +26,9 @@ const uploadPortionBtn = document.getElementById('uploadPortionBtn');
 const portionFileInput = document.getElementById('portionFileInput');
 const portionStatusEl = document.getElementById('portionStatus');
 const worksheetsListEl = document.getElementById('worksheetsList');
+const uploadWorksheetBtn = document.getElementById('uploadWorksheetBtn');
+const worksheetFileInput = document.getElementById('worksheetFileInput');
+const worksheetStatusEl = document.getElementById('worksheetStatus');
 const planEditorEl = document.getElementById('planEditor');
 const backBtn = document.getElementById('backBtn');
 const subjectsBtn = document.getElementById('subjectsBtn');
@@ -50,10 +53,17 @@ const resizeHandlePreviewEl = document.querySelector('.resize-handle-preview');
 const DESKTOP_PDF_MIN_WIDTH = 420;
 const SIDEBAR_VIEWPORT_MAX_RATIO = 0.5;
 
+const confirmModalEl = document.getElementById('confirmModal');
+const confirmMessageEl = document.getElementById('confirmMessage');
+const confirmCancelBtn = document.getElementById('confirmCancel');
+const confirmOkBtn = document.getElementById('confirmOk');
+
 let currentSubject = null;
 let currentPortionImages = [];
-let subjects = loadSubjectsFromStorage();
+let currentWorksheets = [];
+let pendingDeleteCallback = null;
 let selectedSubjectId = null;
+let subjects = loadSubjectsFromStorage();
 
 async function init() {
     if (!selectedSubjectId && subjects.length) {
@@ -312,6 +322,42 @@ async function uploadPortionFiles(fileList) {
     }
 }
 
+async function uploadWorksheetFiles(fileList) {
+    if (!currentSubject) return;
+    const files = Array.from(fileList).filter((file) => file.type);
+    if (!files.length) {
+        worksheetStatusEl.textContent = 'No files selected.';
+        return;
+    }
+
+    worksheetStatusEl.textContent = 'Uploading...';
+
+    try {
+        for (const file of files) {
+            const base64 = await fileToBase64(file);
+            const response = await fetch('/api/worksheets/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    subject: currentSubject.id,
+                    filename: file.name,
+                    file_base64: base64
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        }
+
+        worksheetStatusEl.textContent = `Uploaded ${files.length} file(s).`;
+        await loadWorksheets(currentSubject.id);
+    } catch (error) {
+        console.error('Error uploading worksheets:', error);
+        worksheetStatusEl.textContent = 'Upload failed.';
+    }
+}
+
 async function loadWorksheets(subjectId) {
     worksheetsListEl.innerHTML = '<p class="no-data">Loading worksheets...</p>';
 
@@ -320,6 +366,7 @@ async function loadWorksheets(subjectId) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const worksheets = await response.json();
+        currentWorksheets = worksheets;
         if (!worksheets || worksheets.length === 0) {
             worksheetsListEl.innerHTML = '<p class="no-data">No worksheets found in this subject folder.</p>';
             return;
@@ -336,11 +383,12 @@ function renderWorksheets(worksheets) {
     worksheetsListEl.innerHTML = worksheets
         .map(
             (ws) => `
-                <div class="worksheet-item" data-file="${escapeHtml(ws.file)}" data-name="${escapeHtml(ws.name)}">
+                <div class="worksheet-item" data-file="${escapeHtml(ws.file)}" data-name="${escapeHtml(ws.name)}" tabindex="0">
                     <span class="worksheet-icon">${getWorksheetIcon(ws.type)}</span>
                     <span class="worksheet-name">${escapeHtml(ws.name)}</span>
                     <span class="worksheet-type">${escapeHtml(ws.type)}</span>
                     <button class="preview-btn" data-file="${escapeHtml(ws.file)}" data-name="${escapeHtml(ws.name)}" title="Open">📂</button>
+                    <button class="worksheet-delete-btn" data-file="${escapeHtml(ws.file)}" data-name="${escapeHtml(ws.name)}" title="Delete">×</button>
                 </div>
             `
         )
@@ -351,8 +399,15 @@ function renderWorksheets(worksheets) {
         const name = el.getAttribute('data-name');
         
         el.addEventListener('click', (e) => {
-            if (e.target.classList.contains('preview-btn')) return;
+            if (e.target.classList.contains('preview-btn') || e.target.classList.contains('worksheet-delete-btn')) return;
             if (file) openPreview(file, name);
+        });
+
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                e.preventDefault();
+                promptDeleteWorksheet(name, file);
+            }
         });
     });
 
@@ -364,6 +419,55 @@ function renderWorksheets(worksheets) {
             if (file) window.open(file, '_blank');
         });
     });
+
+    worksheetsListEl.querySelectorAll('.worksheet-delete-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const file = btn.getAttribute('data-file');
+            const name = btn.getAttribute('data-name');
+            promptDeleteWorksheet(name, file);
+        });
+    });
+}
+
+function showWorksheetStatus(message, type) {
+    worksheetStatusEl.textContent = message;
+    worksheetStatusEl.className = `save-status ${type}`;
+    setTimeout(() => {
+        worksheetStatusEl.className = 'save-status';
+        setTimeout(() => {
+            worksheetStatusEl.textContent = '';
+        }, 300);
+    }, 2500);
+}
+
+function promptDeleteWorksheet(name, file) {
+    confirmMessageEl.textContent = `Delete "${name}"?`;
+    confirmModalEl.classList.add('visible');
+    pendingDeleteCallback = () => deleteWorksheet(name, file);
+}
+
+async function deleteWorksheet(name, file) {
+    if (!currentSubject) return;
+
+    try {
+        const response = await fetch('/api/worksheets/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject: currentSubject.id, filename: name })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showWorksheetStatus('File deleted.', 'success');
+            await loadWorksheets(currentSubject.id);
+        } else {
+            showWorksheetStatus('Delete failed.', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting worksheet:', error);
+        showWorksheetStatus('Delete failed.', 'error');
+    }
 }
 
 async function loadPlan(subjectId) {
@@ -453,6 +557,15 @@ function setupEventListeners() {
         await uploadPortionFiles(files);
         portionFileInput.value = '';
     });
+    uploadWorksheetBtn.addEventListener('click', () => {
+        if (!currentSubject) return;
+        worksheetFileInput.click();
+    });
+    worksheetFileInput.addEventListener('change', async (event) => {
+        const files = event.target.files;
+        await uploadWorksheetFiles(files);
+        worksheetFileInput.value = '';
+    });
     togglePdfBtn.addEventListener('click', togglePdfSidebar);
     closeSidebarBtn.addEventListener('click', closePdfSidebar);
     sidebarOverlayEl.addEventListener('click', () => {
@@ -467,6 +580,24 @@ function setupEventListeners() {
     timerBtn.addEventListener('click', openTimer);
     motivationBtn.addEventListener('click', openMotivation);
     savePlanBtn.addEventListener('click', savePlan);
+
+    confirmCancelBtn.addEventListener('click', () => {
+        confirmModalEl.classList.remove('visible');
+        pendingDeleteCallback = null;
+    });
+    confirmOkBtn.addEventListener('click', () => {
+        if (pendingDeleteCallback) {
+            pendingDeleteCallback();
+        }
+        confirmModalEl.classList.remove('visible');
+        pendingDeleteCallback = null;
+    });
+    confirmModalEl.addEventListener('click', (e) => {
+        if (e.target === confirmModalEl) {
+            confirmModalEl.classList.remove('visible');
+            pendingDeleteCallback = null;
+        }
+    });
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {

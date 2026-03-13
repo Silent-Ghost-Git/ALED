@@ -47,8 +47,13 @@
             <div class="section-container">
                 <div class="section-title-bar">
                     <h3 class="subsection-title">Worksheets</h3>
+                    <div class="portion-actions">
+                        <button id="uploadWorksheetBtn" class="small-btn">Upload Files</button>
+                        <span id="worksheetStatus" class="save-status"></span>
+                    </div>
                 </div>
                 <div id="worksheetsList" class="worksheet-list"></div>
+                <input id="worksheetFileInput" type="file" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp" multiple hidden>
             </div>
 
             <div class="section-container">
@@ -86,6 +91,16 @@
     </aside>
 
     <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
+    <div id="confirmModal" class="confirm-modal">
+        <div class="confirm-dialog">
+            <p id="confirmMessage">Are you sure?</p>
+            <div class="confirm-actions">
+                <button id="confirmCancel" class="save-btn">Cancel</button>
+                <button id="confirmOk" class="save-btn danger">Delete</button>
+            </div>
+        </div>
+    </div>
 
     <footer class="footer">
         My Study Dashboard
