@@ -1,5 +1,5 @@
 """
-My Study Dashboard - Custom Server
+ALED - Custom Server
 ======================================
 This server provides API endpoints for:
 - Listing worksheets dynamically from folders
@@ -32,6 +32,7 @@ SUBJECT_FOLDER_MAP = {
 
 ALLOWED_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
 ALLOWED_WORKSHEET_EXTENSIONS = {'.pdf', '.docx', '.doc', '.png', '.jpg', '.jpeg', '.gif', '.webp'}
+ALLOWED_PORTION_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg', '.mp4', '.webm', '.ogg', '.mov', '.avi', '.mp3', '.wav', '.ogg', '.flac', '.m4a', '.doc', '.docx'}
 
 
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
@@ -56,6 +57,10 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         if path == '/api/portion-images':
             subject = query.get('subject', [''])[0]
             self.handle_get_portion_images(subject)
+            return
+
+        if path == '/api/portions':
+            self.handle_get_portions()
             return
 
         super().do_GET()
@@ -99,6 +104,27 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_delete_worksheet(data)
             return
 
+        if path == '/api/portions/upload':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_upload_portion(data)
+            return
+
+        if path == '/api/portions/reorder':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_reorder_portions(data)
+            return
+
+        if path == '/api/portions/delete':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_delete_portion(data)
+            return
+
         self.send_error(404, 'Not Found')
 
     def read_json_body(self):
@@ -138,6 +164,12 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         if not data_dir:
             return None
         return os.path.join(data_dir, 'plan', 'plan.txt')
+
+    def get_global_portions_dir(self):
+        return os.path.join(DIRECTORY, 'data', 'portions')
+
+    def get_portions_order_path(self):
+        return os.path.join(self.get_global_portions_dir(), 'order.json')
 
     def get_portion_order_path(self, subject):
         portion_dir = self.get_portion_dir(subject)
@@ -462,6 +494,160 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json({'error': f'Delete failed: {str(e)}'}, 500)
         else:
             self.send_json({'error': 'File not found'}, 404)
+
+    def handle_get_portions(self):
+        portions_dir = self.get_global_portions_dir()
+        if not os.path.isdir(portions_dir):
+            self.send_json([])
+            return
+
+        order = self.read_portions_order()
+        
+        files = []
+        for filename in os.listdir(portions_dir):
+            filepath = os.path.join(portions_dir, filename)
+            if os.path.isfile(filepath):
+                ext = os.path.splitext(filename)[1].lower()
+                if ext in ALLOWED_PORTION_EXTENSIONS:
+                    files.append(filename)
+
+        existing = set(files)
+        ordered = [name for name in order if name in existing]
+        remaining = sorted([name for name in files if name not in set(ordered)], key=str.lower)
+        final_names = ordered + remaining
+
+        if final_names != order:
+            self.write_portions_order(final_names)
+
+        result = []
+        for name in final_names:
+            url = '/data/portions/{}'.format(urllib.parse.quote(name))
+            ext = os.path.splitext(name)[1][1:]
+            result.append({'name': name, 'url': url, 'type': ext})
+        
+        self.send_json(result)
+
+    def handle_upload_portion(self, data):
+        file_base64 = data.get('file_base64', '')
+        if not isinstance(file_base64, str) or not file_base64.strip():
+            self.send_json({'error': 'file_base64 is required'}, 400)
+            return
+
+        raw = file_base64.strip()
+        if ',' in raw and raw.lower().startswith('data:'):
+            raw = raw.split(',', 1)[1]
+
+        try:
+            file_bytes = base64.b64decode(raw, validate=True)
+        except (ValueError, binascii.Error):
+            self.send_json({'error': 'Invalid base64 data'}, 400)
+            return
+
+        if len(file_bytes) > 25 * 1024 * 1024:
+            self.send_json({'error': 'File too large (max 25MB)'}, 400)
+            return
+
+        portions_dir = self.get_global_portions_dir()
+        os.makedirs(portions_dir, exist_ok=True)
+
+        original_name = data.get('filename', '')
+        ext = Path(original_name).suffix.lower()
+        if ext not in ALLOWED_PORTION_EXTENSIONS:
+            ext = '.pdf'
+
+        preferred_stem = Path(self.sanitize_filename(original_name)).stem
+        preferred_name = f'{preferred_stem or "portion"}{ext}'
+
+        final_name = self.unique_filename(portions_dir, preferred_name, ALLOWED_PORTION_EXTENSIONS)
+        final_path = os.path.join(portions_dir, final_name)
+
+        with open(final_path, 'wb') as file:
+            file.write(file_bytes)
+
+        current_order = self.read_portions_order()
+        if final_name not in current_order:
+            current_order.append(final_name)
+        self.write_portions_order(current_order)
+
+        self.send_json({'success': True, 'name': final_name})
+
+    def handle_reorder_portions(self, data):
+        order = data.get('order', [])
+        if not isinstance(order, list):
+            self.send_json({'error': 'order must be a list'}, 400)
+            return
+
+        portions_dir = self.get_global_portions_dir()
+        if not os.path.isdir(portions_dir):
+            self.send_json({'success': True})
+            return
+
+        files = []
+        for filename in os.listdir(portions_dir):
+            filepath = os.path.join(portions_dir, filename)
+            if os.path.isfile(filepath):
+                ext = os.path.splitext(filename)[1].lower()
+                if ext in ALLOWED_PORTION_EXTENSIONS:
+                    files.append(filename)
+
+        existing = set(files)
+        normalized = []
+        for item in order:
+            name = self.sanitize_filename(str(item))
+            if name in existing and name not in normalized:
+                normalized.append(name)
+
+        for name in files:
+            if name not in normalized:
+                normalized.append(name)
+
+        self.write_portions_order(normalized)
+        self.send_json({'success': True})
+
+    def handle_delete_portion(self, data):
+        filename = data.get('filename', '')
+        if not filename:
+            self.send_json({'error': 'filename is required'}, 400)
+            return
+
+        portions_dir = self.get_global_portions_dir()
+        file_path = os.path.join(portions_dir, filename)
+        
+        if os.path.isfile(file_path):
+            try:
+                os.remove(file_path)
+                current_order = self.read_portions_order()
+                if filename in current_order:
+                    current_order.remove(filename)
+                self.write_portions_order(current_order)
+                self.send_json({'success': True})
+            except OSError as e:
+                self.send_json({'error': f'Delete failed: {str(e)}'}, 500)
+        else:
+            self.send_json({'error': 'File not found'}, 404)
+
+    def read_portions_order(self):
+        order_path = self.get_portions_order_path()
+        if not order_path or not os.path.isfile(order_path):
+            return []
+
+        try:
+            with open(order_path, 'r', encoding='utf-8') as file:
+                data = json.load(file)
+            if isinstance(data, list):
+                return [str(item) for item in data]
+        except (json.JSONDecodeError, OSError):
+            pass
+        return []
+
+    def write_portions_order(self, order):
+        order_path = self.get_portions_order_path()
+        if not order_path:
+            return
+
+        os.makedirs(os.path.dirname(order_path), exist_ok=True)
+        with open(order_path, 'w', encoding='utf-8') as file:
+            json.dump(order, file, ensure_ascii=False, indent=2)
 
     def send_json(self, data, status=200):
         response = json.dumps(data).encode('utf-8')

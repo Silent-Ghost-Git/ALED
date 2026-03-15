@@ -1,6 +1,6 @@
 @echo off
 REM ============================================
-REM My Study Dashboard - Starter
+REM ALED - Starter
 REM ============================================
 REM Double-click this file to start!
 REM ============================================
@@ -8,7 +8,7 @@ REM ============================================
 cd /d "%~dp0"
 
 echo ==========================================
-echo   My Study Dashboard
+echo   ALED
 echo ==========================================
 echo.
 echo Starting server...
@@ -20,7 +20,7 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8000 ^| findstr LISTENING') 
 )
 
 REM Start custom API server in new window
-start "My Study Dashboard Server" cmd /c "python server.py && echo Server stopped && pause"
+start "ALED Server" cmd /c "python server.py && echo Server stopped && pause"
 
 REM Wait for server
 timeout /t 2 /nobreak >nul

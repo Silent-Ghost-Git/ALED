@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Study Dashboard</title>
+    <title>ALED</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,10 +11,9 @@
     <header class="header">
         <div class="header-left">
             <button id="backBtn" class="back-btn-header" style="display: none;">&larr;</button>
-            <h1 class="header-title">My Study Dashboard</h1>
+            <h1 class="header-title">ALED</h1>
         </div>
         <div class="header-buttons">
-            <button id="subjectsBtn" class="top-btn">📚 Subjects</button>
             <button id="togglePdfBtn" class="top-btn">📄 Portion</button>
             <button id="timerBtn" class="top-btn">⏱️ Timer</button>
             <button id="motivationBtn" class="top-btn">💡 Motivation</button>
@@ -32,7 +31,7 @@
                 <h2 id="currentSubjectTitle" class="subject-title"></h2>
             </div>
 
-            <div class="section-container">
+            <div class="section-container" tabindex="0" id="portionSection">
                 <div class="section-title-bar">
                     <h3 class="subsection-title">Portion</h3>
                     <div class="portion-actions">
@@ -44,7 +43,7 @@
                 <input id="portionFileInput" type="file" accept="image/*" multiple hidden>
             </div>
 
-            <div class="section-container">
+            <div class="section-container" tabindex="0" id="worksheetSection">
                 <div class="section-title-bar">
                     <h3 class="subsection-title">Worksheets</h3>
                     <div class="portion-actions">
@@ -56,7 +55,7 @@
                 <input id="worksheetFileInput" type="file" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp" multiple hidden>
             </div>
 
-            <div class="section-container">
+            <div class="section-container" tabindex="0" id="planSection">
                 <div class="section-title-bar">
                     <h3 class="subsection-title">My Study Plan</h3>
                 </div>
@@ -108,7 +107,7 @@
     </div>
 
     <footer class="footer">
-        My Study Dashboard
+        ALED
     </footer>
 
     <script src="script.js"></script>

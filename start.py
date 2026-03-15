@@ -1,5 +1,5 @@
 """
-My Study Dashboard - Starter
+ALED - Starter
 Starts custom backend server.py and opens browser.
 """
 
@@ -13,7 +13,7 @@ PORT = 8000
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 print("=" * 40)
-print("  My Study Dashboard")
+print("  ALED")
 print("=" * 40)
 print()
 

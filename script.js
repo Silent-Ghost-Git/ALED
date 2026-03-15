@@ -31,7 +31,6 @@ const worksheetFileInput = document.getElementById('worksheetFileInput');
 const worksheetStatusEl = document.getElementById('worksheetStatus');
 const planEditorEl = document.getElementById('planEditor');
 const backBtn = document.getElementById('backBtn');
-const subjectsBtn = document.getElementById('subjectsBtn');
 const togglePdfBtn = document.getElementById('togglePdfBtn');
 const timerBtn = document.getElementById('timerBtn');
 const motivationBtn = document.getElementById('motivationBtn');
@@ -68,6 +67,11 @@ let nextSequenceIndex = 0;
 let pendingDeleteCallback = null;
 let selectedSubjectId = null;
 let subjects = loadSubjectsFromStorage();
+let currentIndices = {
+    portion: 0,
+    worksheet: 0,
+    plan: 0
+};
 
 async function init() {
     if (!selectedSubjectId && subjects.length) {
@@ -113,6 +117,7 @@ function renderSubjectList() {
                 <button class="subject-move-btn" data-dir="1" data-index="${index}" ${index === subjects.length - 1 ? 'disabled' : ''} aria-label="Move down">&#9660;</button>
             </div>
         `;
+        // Single-click to select, double-click to open subject
         item.addEventListener('click', () => selectSubject(subject.id));
         item.addEventListener('dblclick', () => openSubject(subject));
 
@@ -181,6 +186,7 @@ function loadSubjectsFromStorage() {
 }
 
 async function openSubject(subject) {
+    console.log('Opening subject:', subject.id);
     currentSubject = subject;
     saveState();
     updateBackButton();
@@ -220,10 +226,14 @@ async function loadPortionImages(subjectId) {
     portionStatusEl.textContent = '';
 
     try {
-        const response = await fetch(`/api/portion-images?subject=${encodeURIComponent(subjectId)}`);
+        const url = `/api/portion-images?subject=${encodeURIComponent(subjectId)}`;
+        console.log('Fetching portion images from:', url);
+        const response = await fetch(url);
+        console.log('Response status:', response.status);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         currentPortionImages = await response.json();
+        console.log('Portion images loaded:', currentPortionImages);
         renderPortionImages();
     } catch (error) {
         console.error('Error loading portion images:', error);
@@ -232,6 +242,9 @@ async function loadPortionImages(subjectId) {
 }
 
 function renderPortionImages() {
+    // Reset portion index when rendering
+    currentIndices.portion = 0;
+    
     if (!currentPortionImages.length) {
         portionContentEl.innerHTML = '<p class="no-data">No screenshots yet. Use Upload Screenshots or paste (Ctrl+V).</p>';
         return;
@@ -239,7 +252,7 @@ function renderPortionImages() {
 
     portionContentEl.innerHTML = currentPortionImages
         .map((image, index) => `
-            <div class="portion-item">
+            <div class="portion-item" data-index="${index}">
                 <img class="portion-image" src="${escapeHtml(image.url)}" alt="${escapeHtml(image.name)}">
                 <div class="portion-item-bar">
                     <span class="portion-name">${escapeHtml(image.name)}</span>
@@ -366,10 +379,14 @@ async function loadWorksheets(subjectId) {
     worksheetsListEl.innerHTML = '<p class="no-data">Loading worksheets...</p>';
 
     try {
-        const response = await fetch(`/api/worksheets?subject=${encodeURIComponent(subjectId)}`);
+        const url = `/api/worksheets?subject=${encodeURIComponent(subjectId)}`;
+        console.log('Fetching worksheets from:', url);
+        const response = await fetch(url);
+        console.log('Response status:', response.status);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const worksheets = await response.json();
+        console.log('Worksheets loaded:', worksheets);
         currentWorksheets = worksheets;
         if (!worksheets || worksheets.length === 0) {
             worksheetsListEl.innerHTML = '<p class="no-data">No worksheets found in this subject folder.</p>';
@@ -384,10 +401,13 @@ async function loadWorksheets(subjectId) {
 }
 
 function renderWorksheets(worksheets) {
+    // Reset worksheet index when rendering
+    currentIndices.worksheet = 0;
+    
     worksheetsListEl.innerHTML = worksheets
         .map(
             (ws) => `
-                <div class="worksheet-item" data-file="${escapeHtml(ws.file)}" data-name="${escapeHtml(ws.name)}" tabindex="0">
+                <div class="worksheet-item" data-file="${escapeHtml(ws.file)}" data-name="${escapeHtml(ws.name)}">
                     <span class="worksheet-icon">${getWorksheetIcon(ws.type)}</span>
                     <span class="worksheet-name">${escapeHtml(ws.name)}</span>
                     <span class="worksheet-type">${escapeHtml(ws.type)}</span>
@@ -809,7 +829,6 @@ function openMotivation() {
 
 function setupEventListeners() {
     backBtn.addEventListener('click', closeSubjectView);
-    subjectsBtn.addEventListener('click', closeSubjectView);
     uploadPortionBtn.addEventListener('click', () => {
         if (!currentSubject) return;
         portionFileInput.click();
@@ -876,53 +895,248 @@ function setupEventListeners() {
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            closePdfSidebar();
-            closePreview();
+            // If preview is in fullscreen, just exit fullscreen instead of closing
+            if (previewSidebarEl.classList.contains('fullscreen')) {
+                toggleFullscreenPreview();
+                return;
+            }
+            
+            // If preview is open (not fullscreen), just close it
+            if (previewSidebarEl.classList.contains('open')) {
+                closePreview();
+                return;
+            }
+
+            // If PDF sidebar is open, close it
+            if (pdfSidebarEl.classList.contains('open')) {
+                closePdfSidebar();
+                return;
+            }
+
+            // If in subject view, go back to subject list
+            if (currentSubject) {
+                closeSubjectView();
+            }
+            return;
         }
 
         const inSubjectList = !currentSubject && subjectPanelEl.style.display !== 'none';
         const tag = (document.activeElement?.tagName || '').toLowerCase();
         const typing = tag === 'textarea' || tag === 'input';
-        if (!inSubjectList || typing) return;
-
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const selected = subjects.find((s) => s.id === selectedSubjectId);
-            if (selected) {
-                openSubject(selected);
-            }
-            return;
-        }
-
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-            e.preventDefault();
-            if (!selectedSubjectId && subjects.length) {
-                selectSubject(subjects[0].id);
+        
+        // Handle subject list navigation (when not typing and in subject list)
+        if (inSubjectList && !typing) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const selected = subjects.find((s) => s.id === selectedSubjectId);
+                if (selected) {
+                    openSubject(selected);
+                }
                 return;
             }
 
-            const index = subjects.findIndex((s) => s.id === selectedSubjectId);
-            if (index === -1) return;
-            const dir = e.key === 'ArrowUp' ? -1 : 1;
-            const nextIndex = (index + dir + subjects.length) % subjects.length;
-            selectSubject(subjects[nextIndex].id);
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (!selectedSubjectId && subjects.length) {
+                    selectSubject(subjects[0].id);
+                    return;
+                }
+
+                const index = subjects.findIndex((s) => s.id === selectedSubjectId);
+                if (index === -1) return;
+                const dir = e.key === 'ArrowUp' ? -1 : 1;
+                const nextIndex = (index + dir + subjects.length) % subjects.length;
+                selectSubject(subjects[nextIndex].id);
+                return;
+            }
+
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                if (!subjects.length) return;
+
+                const index = subjects.findIndex((s) => s.id === selectedSubjectId);
+                if (index === -1) return;
+
+                const dir = e.shiftKey ? -1 : 1;
+                const nextIndex = moveSubject(index, dir);
+                if (nextIndex !== null) {
+                    selectSubject(subjects[nextIndex].id);
+                }
+            }
             return;
         }
 
-        if (e.key === 'Tab') {
-            e.preventDefault();
-            if (!subjects.length) return;
-
-            const index = subjects.findIndex((s) => s.id === selectedSubjectId);
-            if (index === -1) return;
-
-            const dir = e.shiftKey ? -1 : 1;
-            const nextIndex = moveSubject(index, dir);
-            if (nextIndex !== null) {
-                selectSubject(subjects[nextIndex].id);
-            }
+        // Handle subject view navigation (when in a subject)
+        if (currentSubject && !typing) {
+            handleSubjectViewNavigation(e);
         }
     });
+
+function handleSubjectViewNavigation(e) {
+    const blocks = [
+        { sectionId: 'portionSection', contentId: 'portionContent', type: 'portion' },
+        { sectionId: 'worksheetSection', contentId: 'worksheetsList', type: 'worksheet' },
+        { sectionId: 'planSection', contentId: 'planEditor', type: 'plan' }
+    ];
+
+    const currentFocus = document.activeElement;
+    
+    // Find current block by checking focus on section container
+    let currentBlockIndex = -1;
+    for (let i = 0; i < blocks.length; i++) {
+        const sectionEl = document.getElementById(blocks[i].sectionId);
+        if (sectionEl && (sectionEl.contains(currentFocus) || currentFocus === sectionEl)) {
+            currentBlockIndex = i;
+            break;
+        }
+    }
+
+    // If no block is focused, focus the first one (portion)
+    if (currentBlockIndex === -1) {
+        currentBlockIndex = 0;
+    }
+
+    const currentBlock = blocks[currentBlockIndex];
+    
+        // Tab/Shift+Tab: Navigate between blocks
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const direction = e.shiftKey ? -1 : 1;
+            let nextIndex = currentBlockIndex + direction;
+            
+            if (nextIndex < 0) nextIndex = blocks.length - 1;
+            if (nextIndex >= blocks.length) nextIndex = 0;
+            
+            const nextBlock = blocks[nextIndex];
+            const nextSectionEl = document.getElementById(nextBlock.sectionId);
+            
+            if (nextSectionEl) {
+                // Focus the section container
+                nextSectionEl.focus();
+                
+                // Highlight ONLY the block, not the contents
+                highlightBlock(nextBlock.type);
+                
+                // Reset item selection for the new block
+                currentIndices[nextBlock.type] = 0;
+            }
+            return;
+        }
+
+        // Arrow keys: Navigate within blocks
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        
+        if (currentBlock.type === 'plan') {
+            // For textarea, let default behavior work
+            return;
+        }
+        
+        const contentEl = document.getElementById(currentBlock.contentId);
+        const items = contentEl.querySelectorAll('.portion-item, .worksheet-item');
+        if (items.length === 0) return;
+        
+        const direction = e.key === 'ArrowUp' ? -1 : 1;
+        let nextIndex = currentIndices[currentBlock.type] + direction;
+        
+        // Wrap around
+        if (nextIndex < 0) nextIndex = items.length - 1;
+        if (nextIndex >= items.length) nextIndex = 0;
+        
+        currentIndices[currentBlock.type] = nextIndex;
+        highlightCurrentItem(currentBlock.type);
+        return;
+    }
+
+    // Enter: Activate focused item
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        
+        if (currentBlock.type === 'portion') {
+            // Open portion image in preview
+            const contentEl = document.getElementById(currentBlock.contentId);
+            const items = contentEl.querySelectorAll('.portion-item');
+            if (items.length > 0) {
+                const item = items[currentIndices.portion];
+                const img = item.querySelector('.portion-image');
+                if (img && img.src) {
+                    openPreview(img.src, img.alt || 'Portion Image');
+                }
+            }
+        } else if (currentBlock.type === 'worksheet') {
+            // Open worksheet in preview or new tab
+            const contentEl = document.getElementById(currentBlock.contentId);
+            const items = contentEl.querySelectorAll('.worksheet-item');
+            if (items.length > 0) {
+                const item = items[currentIndices.worksheet];
+                const file = item.getAttribute('data-file');
+                const name = item.getAttribute('data-name');
+                if (file) {
+                    // Check if Ctrl/Cmd is pressed for new tab
+                    if (e.ctrlKey || e.metaKey) {
+                        window.open(file, '_blank');
+                    } else {
+                        openPreview(file, name);
+                    }
+                }
+            }
+        }
+        return;
+    }
+
+    // Delete: Remove focused worksheet
+    if ((e.key === 'Delete' || e.key === 'Backspace') && currentBlock.type === 'worksheet') {
+        e.preventDefault();
+        
+        const contentEl = document.getElementById(currentBlock.contentId);
+        const items = contentEl.querySelectorAll('.worksheet-item');
+        if (items.length > 0) {
+            const item = items[currentIndices.worksheet];
+            const file = item.getAttribute('data-file');
+            const name = item.getAttribute('data-name');
+            if (file && name) {
+                promptDeleteWorksheet(name, file);
+            }
+        }
+        return;
+    }
+}
+
+function highlightBlock(blockType) {
+    // Remove highlight from all blocks
+    document.querySelectorAll('.section-container').forEach(el => {
+        el.classList.remove('keyboard-focused');
+    });
+    
+    // Add highlight to current block
+    const sectionId = blockType === 'portion' ? 'portionSection' : 
+                     blockType === 'worksheet' ? 'worksheetSection' : 'planSection';
+    const sectionEl = document.getElementById(sectionId);
+    if (sectionEl) {
+        sectionEl.classList.add('keyboard-focused');
+    }
+}
+
+function highlightCurrentItem(blockType) {
+    // Remove previous highlights
+    document.querySelectorAll('.portion-item, .worksheet-item').forEach(el => {
+        el.classList.remove('keyboard-focused');
+    });
+    
+    const contentId = blockType === 'portion' ? 'portionContent' : 'worksheetsList';
+    const contentEl = document.getElementById(contentId);
+    if (!contentEl) return;
+    
+    const items = contentEl.querySelectorAll('.portion-item, .worksheet-item');
+    if (items.length === 0) return;
+    
+    const index = currentIndices[blockType];
+    if (index >= 0 && index < items.length) {
+        items[index].classList.add('keyboard-focused');
+        // Scroll into view if needed
+        items[index].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+}
 
     document.addEventListener('paste', async (event) => {
         if (!currentSubject) return;

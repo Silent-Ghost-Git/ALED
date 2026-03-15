@@ -1,6 +1,6 @@
 /* 
     ============================================
-    My Study Dashboard - Professional Dark Theme
+    ALED - Professional Dark Theme
     ============================================
 */
 
@@ -450,6 +450,76 @@ body {
     color: var(--text-muted);
     font-style: italic;
     padding: var(--spacing-md);
+}
+
+/* Keyboard navigation focus styles */
+.section-container {
+    outline: none;
+    transition: outline 0.3s ease-out, outline-offset 0.3s ease-out, box-shadow 0.3s ease-out;
+}
+
+.section-container:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+.section-container.keyboard-focused {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    box-shadow: 0 0 10px rgba(0, 184, 148, 0.5);
+    animation: fadeBlockOutline 5s ease-out forwards;
+}
+
+.portion-item.keyboard-focused,
+.worksheet-item.keyboard-focused {
+    background: rgba(0, 184, 148, 0.12) !important;
+    border-color: var(--primary-color) !important;
+    animation: fadeItemHighlight 10s ease-out forwards;
+}
+
+@keyframes fadeBlockOutline {
+    0% {
+        outline-color: var(--primary-color);
+        outline-offset: 2px;
+        box-shadow: 0 0 10px rgba(0, 184, 148, 0.5);
+    }
+    80% {
+        outline-color: var(--primary-color);
+        outline-offset: 2px;
+        box-shadow: 0 0 10px rgba(0, 184, 148, 0.5);
+    }
+    100% {
+        outline-color: transparent;
+        outline-offset: 0;
+        box-shadow: none;
+    }
+}
+
+@keyframes fadeItemHighlight {
+    0% {
+        background: rgba(0, 184, 148, 0.12) !important;
+        border-color: var(--primary-color) !important;
+    }
+    90% {
+        background: rgba(0, 184, 148, 0.12) !important;
+        border-color: var(--primary-color) !important;
+    }
+    100% {
+        background: transparent !important;
+        border-color: var(--border-color) !important;
+    }
+}
+
+@keyframes fadeItemHighlight {
+    0% {
+        filter: brightness(1.1);
+    }
+    90% {
+        filter: brightness(1.1);
+    }
+    100% {
+        filter: brightness(1);
+    }
 }
 
 /* 
