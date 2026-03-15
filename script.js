@@ -1048,10 +1048,115 @@ function handleSubjectViewNavigation(e) {
         return;
     }
 
-    // Enter: Activate focused item
+    // Arrow Left/Right: Navigate within item actions
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        
+        if (currentBlock.type === 'portion') {
+            // Navigate between Up/Down buttons in portion items
+            const contentEl = document.getElementById(currentBlock.contentId);
+            const items = contentEl.querySelectorAll('.portion-item');
+            if (items.length === 0) return;
+            
+            const item = items[currentIndices.portion];
+            const buttons = item.querySelectorAll('.order-btn');
+            if (buttons.length === 0) return;
+            
+            // Find currently focused button or start from beginning
+            let currentButtonIndex = -1;
+            buttons.forEach((btn, idx) => {
+                if (btn === document.activeElement) currentButtonIndex = idx;
+            });
+            
+            const direction = e.key === 'ArrowRight' ? 1 : -1;
+            let nextButtonIndex = currentButtonIndex + direction;
+            
+            // If no button focused, start from first/last depending on direction
+            if (currentButtonIndex === -1) {
+                nextButtonIndex = e.key === 'ArrowRight' ? 0 : buttons.length - 1;
+            }
+            
+            // Wrap around
+            if (nextButtonIndex < 0) nextButtonIndex = buttons.length - 1;
+            if (nextButtonIndex >= buttons.length) nextButtonIndex = 0;
+            
+            buttons[nextButtonIndex].focus();
+            return;
+        } else if (currentBlock.type === 'worksheet') {
+            // Navigate between Open/Delete buttons in worksheet items
+            const contentEl = document.getElementById(currentBlock.contentId);
+            const items = contentEl.querySelectorAll('.worksheet-item');
+            if (items.length === 0) return;
+            
+            const item = items[currentIndices.worksheet];
+            const buttons = item.querySelectorAll('.preview-btn, .worksheet-delete-btn');
+            if (buttons.length === 0) return;
+            
+            // Find currently focused button or start from beginning
+            let currentButtonIndex = -1;
+            buttons.forEach((btn, idx) => {
+                if (btn === document.activeElement) currentButtonIndex = idx;
+            });
+            
+            const direction = e.key === 'ArrowRight' ? 1 : -1;
+            let nextButtonIndex = currentButtonIndex + direction;
+            
+            // If no button focused, start from first/last depending on direction
+            if (currentButtonIndex === -1) {
+                nextButtonIndex = e.key === 'ArrowRight' ? 0 : buttons.length - 1;
+            }
+            
+            // Wrap around
+            if (nextButtonIndex < 0) nextButtonIndex = buttons.length - 1;
+            if (nextButtonIndex >= buttons.length) nextButtonIndex = 0;
+            
+            buttons[nextButtonIndex].focus();
+            return;
+        }
+    }
+
+    // Slash key: Focus plan textarea
+    if (e.key === '/') {
+        e.preventDefault();
+        const planSection = document.getElementById('planSection');
+        const planEditor = document.getElementById('planEditor');
+        planSection.focus();
+        highlightBlock('plan');
+        planEditor.focus();
+        return;
+    }
+
+    // Ctrl+S: Save plan (when in plan block)
+    if (e.key === 's' && (e.ctrlKey || e.metaKey) && currentBlock.type === 'plan') {
+        e.preventDefault();
+        savePlan();
+        return;
+    }
+
+    // Enter: Activate focused item or button
     if (e.key === 'Enter') {
         e.preventDefault();
         
+        // Check if a button is currently focused
+        if (document.activeElement.classList.contains('order-btn')) {
+            // Click the order button (Up/Down)
+            document.activeElement.click();
+            return;
+        } else if (document.activeElement.classList.contains('preview-btn')) {
+            // Click the preview button
+            const file = document.activeElement.getAttribute('data-file');
+            const name = document.activeElement.getAttribute('data-name');
+            if (file) openPreview(file, name);
+            return;
+        } else if (document.activeElement.classList.contains('worksheet-delete-btn')) {
+            // Click the delete button
+            const file = document.activeElement.getAttribute('data-file');
+            const name = document.activeElement.getAttribute('data-name');
+            if (file && name) promptDeleteWorksheet(name, file);
+            return;
+        }
+        
+        // Default behavior: activate the item
         if (currentBlock.type === 'portion') {
             // Open portion image in preview
             const contentEl = document.getElementById(currentBlock.contentId);
@@ -1133,12 +1238,15 @@ function highlightCurrentItem(blockType) {
     const index = currentIndices[blockType];
     if (index >= 0 && index < items.length) {
         items[index].classList.add('keyboard-focused');
+        // Blur any focused buttons within the item
+        const focusedButton = items[index].querySelector('button:focus');
+        if (focusedButton) focusedButton.blur();
         // Scroll into view if needed
         items[index].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 }
 
-    document.addEventListener('paste', async (event) => {
+document.addEventListener('paste', async (event) => {
         if (!currentSubject) return;
         const items = Array.from(event.clipboardData?.items || []);
         const imageFiles = items
