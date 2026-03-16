@@ -804,16 +804,17 @@ body {
 }
 
 .todo-checkbox {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     border: 2px solid var(--border-color);
-    border-radius: 3px;
+    border-radius: 50%;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     transition: all 0.2s ease;
+    background: var(--bg-main);
 }
 
 .todo-item.completed .todo-checkbox {
@@ -822,14 +823,16 @@ body {
 }
 
 .todo-checkbox::after {
-    content: '✓';
-    color: white;
-    font-size: 12px;
+    content: '✕';
+    color: var(--text-muted);
+    font-size: 14px;
     opacity: 0;
     transition: opacity 0.2s ease;
 }
 
 .todo-item.completed .todo-checkbox::after {
+    content: '✓';
+    color: white;
     opacity: 1;
 }
 
@@ -842,9 +845,16 @@ body {
 .todo-text .file-reference {
     color: var(--primary-color);
     background: rgba(0, 184, 148, 0.2);
-    padding: 1px 4px;
+    padding: 1px 6px;
     border-radius: 3px;
     font-family: monospace;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.todo-text .file-reference:hover {
+    background: rgba(0, 184, 148, 0.4);
+    text-decoration: underline;
 }
 
 .todo-delete {

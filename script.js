@@ -575,9 +575,10 @@ function renderTodos() {
     todoListEl.querySelectorAll('.todo-item').forEach(item => {
         const index = parseInt(item.dataset.index);
         
-        // Toggle completion on click
+        // Toggle completion on click (but not when clicking file references or delete button)
         item.addEventListener('click', (e) => {
-            if (!e.target.classList.contains('todo-delete')) {
+            if (!e.target.classList.contains('todo-delete') && 
+                !e.target.classList.contains('file-reference')) {
                 toggleTodo(index);
             }
         });
@@ -589,11 +590,57 @@ function renderTodos() {
             deleteTodo(index);
         });
     });
+    
+    // Add click handlers for file references
+    todoListEl.querySelectorAll('.file-reference').forEach(ref => {
+        ref.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const filename = ref.dataset.filename;
+            if (filename && currentSubject) {
+                // Check if file exists in worksheets
+                checkAndOpenFile(filename);
+            }
+        });
+    });
+}
+
+async function checkAndOpenFile(filename) {
+    if (!currentSubject || !filename) return;
+    
+    try {
+        const response = await fetch(`/api/worksheets?subject=${encodeURIComponent(currentSubject.id)}`);
+        if (!response.ok) return;
+        
+        const worksheets = await response.json();
+        const file = worksheets.find(ws => ws.name.toLowerCase().includes(filename.toLowerCase()));
+        
+        if (file) {
+            openPreview(file.file, file.name);
+        } else {
+            // If not found in worksheets, check if it's a portion image
+            const portionResponse = await fetch(`/api/portion-images?subject=${encodeURIComponent(currentSubject.id)}`);
+            if (!portionResponse.ok) return;
+            
+            const portions = await portionResponse.json();
+            const portion = portions.find(p => p.name.toLowerCase().includes(filename.toLowerCase()));
+            
+            if (portion) {
+                openPreview(portion.url, portion.name);
+            } else {
+                alert(`File "${filename}" not found in this subject.`);
+            }
+        }
+    } catch (error) {
+        console.error('Error checking file:', error);
+    }
 }
 
 function formatTodoText(text) {
-    // Format @references as styled spans
-    return text.replace(/@(\w+)/g, '<span class="file-reference">@$1</span>');
+    // Format @references as clickable spans
+    // Check if file exists before making it clickable (we'll do this in renderTodos)
+    return text.replace(/@(\w+)/g, (match, filename) => {
+        return `<span class="file-reference" data-filename="${filename}">@${filename}</span>`;
+    });
 }
 
 async function toggleTodo(index) {
