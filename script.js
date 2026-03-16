@@ -410,7 +410,7 @@ function renderWorksheets(worksheets) {
     worksheetsListEl.innerHTML = worksheets
         .map(
             (ws) => `
-                <div class="worksheet-item" data-file="${escapeHtml(ws.file)}" data-name="${escapeHtml(ws.name)}">
+                <div class="worksheet-item" data-file="${escapeHtml(ws.file)}" data-name="${escapeHtml(ws.name)}" draggable="true">
                     <span class="worksheet-icon">${getWorksheetIcon(ws.type)}</span>
                     <span class="worksheet-name">${escapeHtml(ws.name)}</span>
                     <span class="worksheet-type">${escapeHtml(ws.type)}</span>
@@ -435,6 +435,15 @@ function renderWorksheets(worksheets) {
                 e.preventDefault();
                 promptDeleteWorksheet(name, file);
             }
+        });
+        
+        // Drag events for worksheet items
+        el.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', JSON.stringify({
+                name: name,
+                file: file
+            }));
+            e.dataTransfer.effectAllowed = 'copy';
         });
     });
 
@@ -1061,7 +1070,7 @@ function setupEventListeners() {
         if (!currentSubject) return;
         
         try {
-            // Load worksheets
+            // Load worksheets only (not portion images)
             const worksheetResponse = await fetch(`/api/worksheets?subject=${encodeURIComponent(currentSubject.id)}`);
             if (worksheetResponse.ok) {
                 const worksheets = await worksheetResponse.json();
@@ -1070,19 +1079,6 @@ function setupEventListeners() {
                     type: 'worksheet',
                     path: ws.file
                 }));
-            }
-            
-            // Load portion images
-            const portionResponse = await fetch(`/api/portion-images?subject=${encodeURIComponent(currentSubject.id)}`);
-            if (portionResponse.ok) {
-                const portions = await portionResponse.json();
-                autocompleteFiles = autocompleteFiles.concat(
-                    portions.map(p => ({
-                        name: p.name,
-                        type: 'portion',
-                        path: p.url
-                    }))
-                );
             }
         } catch (error) {
             console.error('Error loading files for autocomplete:', error);
@@ -1168,6 +1164,21 @@ function setupEventListeners() {
             e.preventDefault();
             addTodoBtn.classList.remove('drag-over');
             
+            // Check for dragged worksheet data
+            const draggedData = e.dataTransfer.getData('text/plain');
+            if (draggedData) {
+                try {
+                    const data = JSON.parse(draggedData);
+                    if (data.name) {
+                        await addTodo(`Review @${data.name}`);
+                        return;
+                    }
+                } catch (err) {
+                    // Not JSON data, continue to file handling
+                }
+            }
+            
+            // Handle file system drops
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 const file = files[0];
@@ -1190,6 +1201,21 @@ function setupEventListeners() {
             e.preventDefault();
             todoSection.classList.remove('drag-over');
             
+            // Check for dragged worksheet data
+            const draggedData = e.dataTransfer.getData('text/plain');
+            if (draggedData) {
+                try {
+                    const data = JSON.parse(draggedData);
+                    if (data.name) {
+                        await addTodo(`Review @${data.name}`);
+                        return;
+                    }
+                } catch (err) {
+                    // Not JSON data, continue to file handling
+                }
+            }
+            
+            // Handle file system drops
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 const file = files[0];
