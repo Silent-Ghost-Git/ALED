@@ -1061,6 +1061,7 @@ function setupEventListeners() {
     const todoAutocomplete = document.getElementById('todoAutocomplete');
     const todoList = document.getElementById('todoList');
     const todoSection = document.getElementById('todoSection');
+    const submitTodoBtn = document.getElementById('submitTodoBtn');
     
     let autocompleteFiles = [];
     let selectedAutocompleteIndex = -1;
@@ -1162,6 +1163,7 @@ function setupEventListeners() {
         
         addTodoBtn.addEventListener('drop', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             addTodoBtn.classList.remove('drag-over');
             
             // Show input field for editing
@@ -1321,6 +1323,22 @@ function setupEventListeners() {
                 }, 10);
             }
         });
+        
+        // Submit button click handler
+        if (submitTodoBtn) {
+            submitTodoBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const text = todoInput.value.trim();
+                if (text) {
+                    await addTodo(text);
+                }
+                todoInput.value = '';
+                todoInputContainer.style.display = 'none';
+                addTodoBtn.style.display = 'inline-block';
+                hideAutocomplete();
+            });
+        }
         
         // Hide autocomplete when clicking outside
         document.addEventListener('click', (e) => {
