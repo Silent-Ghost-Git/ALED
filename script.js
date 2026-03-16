@@ -435,14 +435,14 @@ function renderWorksheets(worksheets) {
         });
     });
 
-    worksheetsListEl.querySelectorAll('.preview-btn').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const file = btn.getAttribute('data-file');
-            const name = btn.getAttribute('data-name');
-            if (file) window.open(file, '_blank');
+        worksheetsListEl.querySelectorAll('.preview-btn').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const file = btn.getAttribute('data-file');
+                const name = btn.getAttribute('data-name');
+                if (file) openPreview(file, name);
+            });
         });
-    });
 
     worksheetsListEl.querySelectorAll('.worksheet-delete-btn').forEach((btn) => {
         btn.addEventListener('click', (e) => {
@@ -469,6 +469,8 @@ function promptDeleteWorksheet(name, file) {
     confirmMessageEl.textContent = `Delete "${name}"?`;
     confirmModalEl.classList.add('visible');
     pendingDeleteCallback = () => deleteWorksheet(name, file);
+    // Focus the Cancel button by default
+    setTimeout(() => confirmCancelBtn.focus(), 10);
 }
 
 async function deleteWorksheet(name, file) {
@@ -795,6 +797,8 @@ function promptDeleteGlobalPortion(name) {
     confirmMessageEl.textContent = `Delete "${name}"?`;
     confirmModalEl.classList.add('visible');
     pendingDeleteCallback = () => deleteGlobalPortion(name);
+    // Focus the Cancel button by default
+    setTimeout(() => confirmCancelBtn.focus(), 10);
 }
 
 async function openPdfSidebar() {
@@ -874,6 +878,15 @@ function setupEventListeners() {
     timerBtn.addEventListener('click', openTimer);
     motivationBtn.addEventListener('click', openMotivation);
     savePlanBtn.addEventListener('click', savePlan);
+    
+    // Plan editor Ctrl+S shortcut
+    planEditorEl.addEventListener('keydown', (e) => {
+        if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            e.stopPropagation();
+            savePlan();
+        }
+    });
 
     confirmCancelBtn.addEventListener('click', () => {
         confirmModalEl.classList.remove('visible');
@@ -893,8 +906,47 @@ function setupEventListeners() {
         }
     });
 
+    // Confirm dialog keyboard navigation
+    confirmModalEl.addEventListener('keydown', (e) => {
+        if (!confirmModalEl.classList.contains('visible')) return;
+
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            if (document.activeElement === confirmCancelBtn) {
+                confirmOkBtn.focus();
+            } else {
+                confirmCancelBtn.focus();
+            }
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            if (document.activeElement === confirmCancelBtn) {
+                confirmOkBtn.focus();
+            } else {
+                confirmCancelBtn.focus();
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (document.activeElement === confirmOkBtn && pendingDeleteCallback) {
+                pendingDeleteCallback();
+            }
+            confirmModalEl.classList.remove('visible');
+            pendingDeleteCallback = null;
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            confirmModalEl.classList.remove('visible');
+            pendingDeleteCallback = null;
+        }
+    });
+
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+            // If confirm dialog is open, close it
+            if (confirmModalEl.classList.contains('visible')) {
+                confirmModalEl.classList.remove('visible');
+                pendingDeleteCallback = null;
+                return;
+            }
+            
             // If preview is in fullscreen, just exit fullscreen instead of closing
             if (previewSidebarEl.classList.contains('fullscreen')) {
                 toggleFullscreenPreview();
@@ -966,8 +1018,8 @@ function setupEventListeners() {
             return;
         }
 
-        // Handle subject view navigation (when in a subject)
-        if (currentSubject && !typing) {
+        // Handle subject view navigation (when in a subject and confirm dialog is NOT visible)
+        if (currentSubject && !typing && !confirmModalEl.classList.contains('visible')) {
             handleSubjectViewNavigation(e);
         }
     });
@@ -1126,9 +1178,10 @@ function handleSubjectViewNavigation(e) {
         return;
     }
 
-    // Ctrl+S: Save plan (when in plan block)
-    if (e.key === 's' && (e.ctrlKey || e.metaKey) && currentBlock.type === 'plan') {
+    // Ctrl+S: Save plan (when typing in textarea)
+    if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
+        e.stopPropagation();
         savePlan();
         return;
     }
