@@ -479,6 +479,7 @@ function showWorksheetStatus(message, type) {
 
 function promptDeleteWorksheet(name, file) {
     confirmMessageEl.textContent = `Delete "${name}"?`;
+    confirmOkBtn.textContent = 'Delete';
     confirmModalEl.classList.add('visible');
     pendingDeleteCallback = () => deleteWorksheet(name, file);
     // Focus the Cancel button by default
@@ -596,7 +597,7 @@ function renderTodos() {
         const deleteBtn = item.querySelector('.todo-delete');
         deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            deleteTodo(index);
+            promptDeleteTodo(index);
         });
     });
     
@@ -658,6 +659,20 @@ async function toggleTodo(index) {
     currentTodos[index].completed = !currentTodos[index].completed;
     await saveTodos();
     renderTodos();
+}
+
+function promptDeleteTodo(index) {
+    const todo = currentTodos[index];
+    if (!todo) return;
+    
+    confirmMessageEl.textContent = `Delete "${todo.text.substring(0, 30)}${todo.text.length > 30 ? '...' : ''}"?`;
+    confirmOkBtn.textContent = 'Delete';
+    confirmOkBtn.classList.add('danger');
+    confirmOkBtn.classList.remove('complete');
+    confirmModalEl.classList.add('visible');
+    pendingDeleteCallback = () => deleteTodo(index);
+    // Focus the Cancel button by default
+    setTimeout(() => confirmCancelBtn.focus(), 10);
 }
 
 async function deleteTodo(index) {
@@ -961,6 +976,7 @@ async function deleteGlobalPortion(name) {
 function promptDeleteGlobalPortion(name) {
     if (!name) return;
     confirmMessageEl.textContent = `Delete "${name}"?`;
+    confirmOkBtn.textContent = 'Delete';
     confirmModalEl.classList.add('visible');
     pendingDeleteCallback = () => deleteGlobalPortion(name);
     // Focus the Cancel button by default
@@ -1045,12 +1061,36 @@ function setupEventListeners() {
     motivationBtn.addEventListener('click', openMotivation);
     savePlanBtn.addEventListener('click', savePlan);
     
-    // Plan editor Ctrl+S shortcut
+    // Plan editor Ctrl+S shortcut and Tab navigation
     planEditorEl.addEventListener('keydown', (e) => {
         if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
             e.stopPropagation();
             savePlan();
+        } else if (e.key === 'Tab') {
+            // Navigate to next block when Tab is pressed in plan editor
+            e.preventDefault();
+            const blocks = [
+                { sectionId: 'portionSection', contentId: 'portionContent', type: 'portion' },
+                { sectionId: 'worksheetSection', contentId: 'worksheetsList', type: 'worksheet' },
+                { sectionId: 'planSection', contentId: 'planEditor', type: 'plan' },
+                { sectionId: 'todoSection', contentId: 'todoList', type: 'todo' }
+            ];
+            const currentBlockIndex = 2; // plan is at index 2
+            const direction = e.shiftKey ? -1 : 1;
+            let nextIndex = currentBlockIndex + direction;
+            
+            if (nextIndex < 0) nextIndex = blocks.length - 1;
+            if (nextIndex >= blocks.length) nextIndex = 0;
+            
+            const nextBlock = blocks[nextIndex];
+            const nextSectionEl = document.getElementById(nextBlock.sectionId);
+            
+            if (nextSectionEl) {
+                nextSectionEl.focus();
+                highlightBlock(nextBlock.type);
+                currentIndices[nextBlock.type] = 0;
+            }
         }
     });
 
@@ -1298,13 +1338,43 @@ function setupEventListeners() {
                         });
                     }
                 }
-            } else if (e.key === 'Tab' && todoAutocomplete.classList.contains('visible')) {
+            } else if (e.key === 'Tab') {
                 e.preventDefault();
-                const items = todoAutocomplete.querySelectorAll('.autocomplete-item');
-                if (items.length > 0 && selectedAutocompleteIndex >= 0) {
-                    const selectedFile = autocompleteFiles[selectedAutocompleteIndex];
-                    if (selectedFile) {
-                        selectAutocompleteFile(selectedFile);
+                if (todoAutocomplete.classList.contains('visible')) {
+                    // Navigate autocomplete items
+                    const items = todoAutocomplete.querySelectorAll('.autocomplete-item');
+                    if (items.length > 0 && selectedAutocompleteIndex >= 0) {
+                        const selectedFile = autocompleteFiles[selectedAutocompleteIndex];
+                        if (selectedFile) {
+                            selectAutocompleteFile(selectedFile);
+                        }
+                    }
+                } else {
+                    // Navigate to next block
+                    const blocks = [
+                        { sectionId: 'portionSection', contentId: 'portionContent', type: 'portion' },
+                        { sectionId: 'worksheetSection', contentId: 'worksheetsList', type: 'worksheet' },
+                        { sectionId: 'planSection', contentId: 'planEditor', type: 'plan' },
+                        { sectionId: 'todoSection', contentId: 'todoList', type: 'todo' }
+                    ];
+                    const currentBlockIndex = 3; // todo is at index 3
+                    const direction = e.shiftKey ? -1 : 1;
+                    let nextIndex = currentBlockIndex + direction;
+                    
+                    if (nextIndex < 0) nextIndex = blocks.length - 1;
+                    if (nextIndex >= blocks.length) nextIndex = 0;
+                    
+                    const nextBlock = blocks[nextIndex];
+                    const nextSectionEl = document.getElementById(nextBlock.sectionId);
+                    
+                    if (nextSectionEl) {
+                        // Hide the input first
+                        todoInputContainer.style.display = 'none';
+                        addTodoBtn.style.display = 'inline-block';
+                        
+                        nextSectionEl.focus();
+                        highlightBlock(nextBlock.type);
+                        currentIndices[nextBlock.type] = 0;
                     }
                 }
             } else {
