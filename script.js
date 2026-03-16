@@ -1048,13 +1048,154 @@ function setupEventListeners() {
     // To-Do event listeners
     const addTodoBtn = document.getElementById('addTodoBtn');
     const todoInput = document.getElementById('todoInput');
+    const todoInputContainer = document.getElementById('todoInputContainer');
+    const todoAutocomplete = document.getElementById('todoAutocomplete');
     const todoList = document.getElementById('todoList');
+    const todoSection = document.getElementById('todoSection');
+    
+    let autocompleteFiles = [];
+    let selectedAutocompleteIndex = -1;
+    
+    // Load all files for autocomplete when subject changes
+    async function loadAutocompleteFiles() {
+        if (!currentSubject) return;
+        
+        try {
+            // Load worksheets
+            const worksheetResponse = await fetch(`/api/worksheets?subject=${encodeURIComponent(currentSubject.id)}`);
+            if (worksheetResponse.ok) {
+                const worksheets = await worksheetResponse.json();
+                autocompleteFiles = worksheets.map(ws => ({
+                    name: ws.name,
+                    type: 'worksheet',
+                    path: ws.file
+                }));
+            }
+            
+            // Load portion images
+            const portionResponse = await fetch(`/api/portion-images?subject=${encodeURIComponent(currentSubject.id)}`);
+            if (portionResponse.ok) {
+                const portions = await portionResponse.json();
+                autocompleteFiles = autocompleteFiles.concat(
+                    portions.map(p => ({
+                        name: p.name,
+                        type: 'portion',
+                        path: p.url
+                    }))
+                );
+            }
+        } catch (error) {
+            console.error('Error loading files for autocomplete:', error);
+        }
+    }
+    
+    // Show autocomplete dropdown
+    function showAutocomplete(searchTerm = '') {
+        if (!todoAutocomplete) return;
+        
+        const filteredFiles = autocompleteFiles.filter(file => 
+            file.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        
+        if (filteredFiles.length === 0) {
+            todoAutocomplete.classList.remove('visible');
+            return;
+        }
+        
+        todoAutocomplete.innerHTML = filteredFiles.map((file, index) => `
+            <div class="autocomplete-item ${index === selectedAutocompleteIndex ? 'selected' : ''}" data-index="${index}">
+                <span class="autocomplete-item-icon">${file.type === 'worksheet' ? '📄' : '🖼️'}</span>
+                <span>${file.name}</span>
+            </div>
+        `).join('');
+        
+        todoAutocomplete.classList.add('visible');
+        
+        // Add click handlers
+        todoAutocomplete.querySelectorAll('.autocomplete-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const index = parseInt(item.dataset.index);
+                selectAutocompleteFile(filteredFiles[index]);
+            });
+        });
+    }
+    
+    // Select autocomplete file
+    function selectAutocompleteFile(file) {
+        const cursorPos = todoInput.selectionStart;
+        const textBefore = todoInput.value.substring(0, cursorPos);
+        const textAfter = todoInput.value.substring(cursorPos);
+        
+        // Find the @ symbol position
+        const atIndex = textBefore.lastIndexOf('@');
+        if (atIndex !== -1) {
+            const newText = textBefore.substring(0, atIndex) + '@' + file.name + ' ' + textAfter;
+            todoInput.value = newText;
+            todoInput.focus();
+            todoInput.setSelectionRange(atIndex + file.name.length + 2, atIndex + file.name.length + 2);
+        }
+        
+        hideAutocomplete();
+    }
+    
+    // Hide autocomplete
+    function hideAutocomplete() {
+        if (todoAutocomplete) {
+            todoAutocomplete.classList.remove('visible');
+        }
+        selectedAutocompleteIndex = -1;
+    }
     
     if (addTodoBtn && todoInput) {
         addTodoBtn.addEventListener('click', () => {
-            todoInput.style.display = 'block';
+            todoInputContainer.style.display = 'block';
             todoInput.focus();
             addTodoBtn.style.display = 'none';
+            loadAutocompleteFiles();
+        });
+        
+        // Drag and drop for add button
+        addTodoBtn.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            addTodoBtn.classList.add('drag-over');
+        });
+        
+        addTodoBtn.addEventListener('dragleave', () => {
+            addTodoBtn.classList.remove('drag-over');
+        });
+        
+        addTodoBtn.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            addTodoBtn.classList.remove('drag-over');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                const fileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+                await addTodo(`Review @${fileName}`);
+            }
+        });
+        
+        // Drag and drop for todo section
+        todoSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            todoSection.classList.add('drag-over');
+        });
+        
+        todoSection.addEventListener('dragleave', () => {
+            todoSection.classList.remove('drag-over');
+        });
+        
+        todoSection.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            todoSection.classList.remove('drag-over');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                const fileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+                await addTodo(`Review @${fileName}`);
+            }
         });
         
         todoInput.addEventListener('keydown', async (e) => {
@@ -1065,28 +1206,74 @@ function setupEventListeners() {
                     await addTodo(text);
                 }
                 todoInput.value = '';
-                todoInput.style.display = 'none';
+                todoInputContainer.style.display = 'none';
                 addTodoBtn.style.display = 'inline-block';
+                hideAutocomplete();
             } else if (e.key === 'Escape') {
                 todoInput.value = '';
-                todoInput.style.display = 'none';
+                todoInputContainer.style.display = 'none';
                 addTodoBtn.style.display = 'inline-block';
+                hideAutocomplete();
             } else if (e.key === '@') {
-                // Show file reference autocomplete (simplified for now)
-                // In a full implementation, this would show a dropdown of files
-                console.log('File reference requested');
+                // Show file reference autocomplete
+                setTimeout(() => {
+                    const cursorPos = todoInput.selectionStart;
+                    const textBefore = todoInput.value.substring(0, cursorPos);
+                    const searchTerm = textBefore.substring(textBefore.lastIndexOf('@') + 1);
+                    selectedAutocompleteIndex = -1;
+                    showAutocomplete(searchTerm);
+                }, 10);
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                if (todoAutocomplete.classList.contains('visible')) {
+                    e.preventDefault();
+                    const items = todoAutocomplete.querySelectorAll('.autocomplete-item');
+                    if (items.length > 0) {
+                        if (e.key === 'ArrowDown') {
+                            selectedAutocompleteIndex = (selectedAutocompleteIndex + 1) % items.length;
+                        } else {
+                            selectedAutocompleteIndex = selectedAutocompleteIndex <= 0 ? items.length - 1 : selectedAutocompleteIndex - 1;
+                        }
+                        items.forEach((item, index) => {
+                            item.classList.toggle('selected', index === selectedAutocompleteIndex);
+                        });
+                    }
+                }
+            } else if (e.key === 'Tab' && todoAutocomplete.classList.contains('visible')) {
+                e.preventDefault();
+                const items = todoAutocomplete.querySelectorAll('.autocomplete-item');
+                if (items.length > 0 && selectedAutocompleteIndex >= 0) {
+                    const selectedFile = autocompleteFiles[selectedAutocompleteIndex];
+                    if (selectedFile) {
+                        selectAutocompleteFile(selectedFile);
+                    }
+                }
+            } else {
+                // Update autocomplete as user types
+                setTimeout(() => {
+                    const cursorPos = todoInput.selectionStart;
+                    const textBefore = todoInput.value.substring(0, cursorPos);
+                    const atIndex = textBefore.lastIndexOf('@');
+                    if (atIndex !== -1) {
+                        const searchTerm = textBefore.substring(atIndex + 1);
+                        selectedAutocompleteIndex = -1;
+                        showAutocomplete(searchTerm);
+                    } else {
+                        hideAutocomplete();
+                    }
+                }, 10);
             }
         });
         
-        // Hide input when clicking outside
+        // Hide autocomplete when clicking outside
         document.addEventListener('click', (e) => {
-            if (!todoInput.contains(e.target) && !addTodoBtn.contains(e.target)) {
-                if (todoInput.style.display === 'block') {
+            if (!todoInputContainer.contains(e.target) && !addTodoBtn.contains(e.target)) {
+                hideAutocomplete();
+                if (todoInputContainer.style.display === 'block') {
                     if (todoInput.value.trim()) {
                         addTodo(todoInput.value.trim());
                     }
                     todoInput.value = '';
-                    todoInput.style.display = 'none';
+                    todoInputContainer.style.display = 'none';
                     addTodoBtn.style.display = 'inline-block';
                 }
             }
