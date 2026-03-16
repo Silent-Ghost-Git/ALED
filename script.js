@@ -1806,8 +1806,17 @@ function highlightBlock(blockType) {
     });
     
     // Add highlight to current block
-    const sectionId = blockType === 'portion' ? 'portionSection' : 
-                     blockType === 'worksheet' ? 'worksheetSection' : 'planSection';
+    let sectionId;
+    if (blockType === 'portion') {
+        sectionId = 'portionSection';
+    } else if (blockType === 'worksheet') {
+        sectionId = 'worksheetSection';
+    } else if (blockType === 'plan') {
+        sectionId = 'planSection';
+    } else if (blockType === 'todo') {
+        sectionId = 'todoSection';
+    }
+    
     const sectionEl = document.getElementById(sectionId);
     if (sectionEl) {
         sectionEl.classList.add('keyboard-focused');
