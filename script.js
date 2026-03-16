@@ -1160,9 +1160,19 @@ function setupEventListeners() {
             addTodoBtn.classList.remove('drag-over');
         });
         
-        addTodoBtn.addEventListener('drop', async (e) => {
+        addTodoBtn.addEventListener('drop', (e) => {
             e.preventDefault();
             addTodoBtn.classList.remove('drag-over');
+            
+            // Show input field for editing
+            todoInputContainer.style.display = 'block';
+            addTodoBtn.style.display = 'none';
+            loadAutocompleteFiles();
+            
+            // Insert file reference at current cursor position or at the end
+            const cursorPos = todoInput.selectionStart;
+            const textBefore = todoInput.value.substring(0, cursorPos);
+            const textAfter = todoInput.value.substring(cursorPos);
             
             // Check for dragged worksheet data
             const draggedData = e.dataTransfer.getData('text/plain');
@@ -1170,7 +1180,10 @@ function setupEventListeners() {
                 try {
                     const data = JSON.parse(draggedData);
                     if (data.name) {
-                        await addTodo(`Review @${data.name}`);
+                        todoInput.value = textBefore + `@${data.name} ` + textAfter;
+                        todoInput.focus();
+                        const newCursorPos = cursorPos + data.name.length + 2;
+                        todoInput.setSelectionRange(newCursorPos, newCursorPos);
                         return;
                     }
                 } catch (err) {
@@ -1183,7 +1196,10 @@ function setupEventListeners() {
             if (files.length > 0) {
                 const file = files[0];
                 const fileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
-                await addTodo(`Review @${fileName}`);
+                todoInput.value = textBefore + `@${fileName} ` + textAfter;
+                todoInput.focus();
+                const newCursorPos = cursorPos + fileName.length + 2;
+                todoInput.setSelectionRange(newCursorPos, newCursorPos);
             }
         });
         
@@ -1197,9 +1213,19 @@ function setupEventListeners() {
             todoSection.classList.remove('drag-over');
         });
         
-        todoSection.addEventListener('drop', async (e) => {
+        todoSection.addEventListener('drop', (e) => {
             e.preventDefault();
             todoSection.classList.remove('drag-over');
+            
+            // Show input field for editing
+            todoInputContainer.style.display = 'block';
+            addTodoBtn.style.display = 'none';
+            loadAutocompleteFiles();
+            
+            // Insert file reference at current cursor position or at the end
+            const cursorPos = todoInput.selectionStart;
+            const textBefore = todoInput.value.substring(0, cursorPos);
+            const textAfter = todoInput.value.substring(cursorPos);
             
             // Check for dragged worksheet data
             const draggedData = e.dataTransfer.getData('text/plain');
@@ -1207,7 +1233,10 @@ function setupEventListeners() {
                 try {
                     const data = JSON.parse(draggedData);
                     if (data.name) {
-                        await addTodo(`Review @${data.name}`);
+                        todoInput.value = textBefore + `@${data.name} ` + textAfter;
+                        todoInput.focus();
+                        const newCursorPos = cursorPos + data.name.length + 2;
+                        todoInput.setSelectionRange(newCursorPos, newCursorPos);
                         return;
                     }
                 } catch (err) {
@@ -1220,7 +1249,10 @@ function setupEventListeners() {
             if (files.length > 0) {
                 const file = files[0];
                 const fileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
-                await addTodo(`Review @${fileName}`);
+                todoInput.value = textBefore + `@${fileName} ` + textAfter;
+                todoInput.focus();
+                const newCursorPos = cursorPos + fileName.length + 2;
+                todoInput.setSelectionRange(newCursorPos, newCursorPos);
             }
         });
         
