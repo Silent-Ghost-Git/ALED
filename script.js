@@ -63,6 +63,7 @@ let currentSubject = null;
 let currentPortionImages = [];
 let currentWorksheets = [];
 let currentGlobalPortions = [];
+let currentTodos = [];
 let nextSequenceIndex = 0;
 let pendingDeleteCallback = null;
 let selectedSubjectId = null;
@@ -70,7 +71,8 @@ let subjects = loadSubjectsFromStorage();
 let currentIndices = {
     portion: 0,
     worksheet: 0,
-    plan: 0
+    plan: 0,
+    todo: 0
 };
 
 async function init() {
@@ -198,6 +200,7 @@ async function openSubject(subject) {
     await loadPortionImages(subject.id);
     await loadWorksheets(subject.id);
     await loadPlan(subject.id);
+    await loadTodos(subject.id);
 
     subjectPanelEl.style.display = 'none';
     subjectViewEl.classList.add('active');
@@ -529,6 +532,113 @@ async function savePlan() {
     } catch (error) {
         console.error('Error saving plan:', error);
         showSaveStatus('Could not save plan.', 'error');
+    }
+}
+
+async function loadTodos(subjectId) {
+    const todoListEl = document.getElementById('todoList');
+    if (!todoListEl) return;
+    
+    todoListEl.innerHTML = '<p class="no-data">Loading tasks...</p>';
+    
+    try {
+        const response = await fetch(`/api/todos?subject=${encodeURIComponent(subjectId)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        currentTodos = data.todos || [];
+        renderTodos();
+    } catch (error) {
+        console.error('Error loading todos:', error);
+        todoListEl.innerHTML = '<p class="no-data">Error loading tasks.</p>';
+    }
+}
+
+function renderTodos() {
+    const todoListEl = document.getElementById('todoList');
+    if (!todoListEl) return;
+    
+    if (currentTodos.length === 0) {
+        todoListEl.innerHTML = '<p class="no-data">No tasks yet. Click "Add Task" to get started!</p>';
+        return;
+    }
+    
+    todoListEl.innerHTML = currentTodos.map((todo, index) => `
+        <div class="todo-item ${todo.completed ? 'completed' : ''}" data-index="${index}">
+            <div class="todo-checkbox"></div>
+            <div class="todo-text">${formatTodoText(todo.text)}</div>
+            <button class="todo-delete" title="Delete task">×</button>
+        </div>
+    `).join('');
+    
+    // Add event listeners
+    todoListEl.querySelectorAll('.todo-item').forEach(item => {
+        const index = parseInt(item.dataset.index);
+        
+        // Toggle completion on click
+        item.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('todo-delete')) {
+                toggleTodo(index);
+            }
+        });
+        
+        // Delete button
+        const deleteBtn = item.querySelector('.todo-delete');
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteTodo(index);
+        });
+    });
+}
+
+function formatTodoText(text) {
+    // Format @references as styled spans
+    return text.replace(/@(\w+)/g, '<span class="file-reference">@$1</span>');
+}
+
+async function toggleTodo(index) {
+    if (index < 0 || index >= currentTodos.length) return;
+    
+    currentTodos[index].completed = !currentTodos[index].completed;
+    await saveTodos();
+    renderTodos();
+}
+
+async function deleteTodo(index) {
+    if (index < 0 || index >= currentTodos.length) return;
+    
+    currentTodos.splice(index, 1);
+    await saveTodos();
+    renderTodos();
+}
+
+async function addTodo(text) {
+    if (!text.trim()) return;
+    
+    currentTodos.push({
+        text: text.trim(),
+        completed: false,
+        createdAt: new Date().toISOString()
+    });
+    
+    await saveTodos();
+    renderTodos();
+}
+
+async function saveTodos() {
+    if (!currentSubject) return;
+    
+    try {
+        await fetch('/api/todos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subject: currentSubject.id,
+                todos: currentTodos
+            })
+        });
+    } catch (error) {
+        console.error('Error saving todos:', error);
     }
 }
 
@@ -888,6 +998,54 @@ function setupEventListeners() {
         }
     });
 
+    // To-Do event listeners
+    const addTodoBtn = document.getElementById('addTodoBtn');
+    const todoInput = document.getElementById('todoInput');
+    const todoList = document.getElementById('todoList');
+    
+    if (addTodoBtn && todoInput) {
+        addTodoBtn.addEventListener('click', () => {
+            todoInput.style.display = 'block';
+            todoInput.focus();
+            addTodoBtn.style.display = 'none';
+        });
+        
+        todoInput.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const text = todoInput.value.trim();
+                if (text) {
+                    await addTodo(text);
+                }
+                todoInput.value = '';
+                todoInput.style.display = 'none';
+                addTodoBtn.style.display = 'inline-block';
+            } else if (e.key === 'Escape') {
+                todoInput.value = '';
+                todoInput.style.display = 'none';
+                addTodoBtn.style.display = 'inline-block';
+            } else if (e.key === '@') {
+                // Show file reference autocomplete (simplified for now)
+                // In a full implementation, this would show a dropdown of files
+                console.log('File reference requested');
+            }
+        });
+        
+        // Hide input when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!todoInput.contains(e.target) && !addTodoBtn.contains(e.target)) {
+                if (todoInput.style.display === 'block') {
+                    if (todoInput.value.trim()) {
+                        addTodo(todoInput.value.trim());
+                    }
+                    todoInput.value = '';
+                    todoInput.style.display = 'none';
+                    addTodoBtn.style.display = 'inline-block';
+                }
+            }
+        });
+    }
+
     confirmCancelBtn.addEventListener('click', () => {
         confirmModalEl.classList.remove('visible');
         pendingDeleteCallback = null;
@@ -1028,7 +1186,8 @@ function handleSubjectViewNavigation(e) {
     const blocks = [
         { sectionId: 'portionSection', contentId: 'portionContent', type: 'portion' },
         { sectionId: 'worksheetSection', contentId: 'worksheetsList', type: 'worksheet' },
-        { sectionId: 'planSection', contentId: 'planEditor', type: 'plan' }
+        { sectionId: 'planSection', contentId: 'planEditor', type: 'plan' },
+        { sectionId: 'todoSection', contentId: 'todoList', type: 'todo' }
     ];
 
     const currentFocus = document.activeElement;

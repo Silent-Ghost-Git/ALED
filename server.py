@@ -59,6 +59,11 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_get_portion_images(subject)
             return
 
+        if path == '/api/todos':
+            subject = query.get('subject', [''])[0]
+            self.handle_get_todos(subject)
+            return
+
         if path == '/api/portions':
             self.handle_get_portions()
             return
@@ -74,6 +79,13 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             if data is None:
                 return
             self.handle_save_plan(data)
+            return
+
+        if path == '/api/todos':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_save_todos(data)
             return
 
         if path == '/api/portion-images':
@@ -333,6 +345,55 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             file.write(content)
 
         self.send_json({'success': True, 'message': 'Plan saved!'})
+
+    def get_todos_path(self, subject):
+        folder_name = self.get_subject_folder(subject)
+        if not folder_name:
+            return None
+        data_dir = Path(DIRECTORY) / 'data' / folder_name
+        todos_path = data_dir / 'todos.json'
+        return str(todos_path)
+
+    def handle_get_todos(self, subject):
+        folder_name = self.get_subject_folder(subject)
+        if not folder_name:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        todos_path = self.get_todos_path(subject)
+
+        if todos_path and os.path.isfile(todos_path):
+            try:
+                with open(todos_path, 'r', encoding='utf-8') as file:
+                    todos = json.load(file)
+                self.send_json({'todos': todos})
+            except:
+                self.send_json({'todos': []})
+        else:
+            self.send_json({'todos': []})
+
+    def handle_save_todos(self, data):
+        subject = data.get('subject', '')
+        todos = data.get('todos', [])
+
+        folder_name = self.get_subject_folder(subject)
+        if not folder_name:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        todos_path = self.get_todos_path(subject)
+        if not todos_path:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        todos_dir = os.path.dirname(todos_path)
+        if todos_dir and todos_dir.strip():
+            os.makedirs(todos_dir, exist_ok=True)
+
+        with open(todos_path, 'w', encoding='utf-8') as file:
+            json.dump(todos, file, indent=2)
+
+        self.send_json({'success': True, 'message': 'Todos saved!'})
 
     def handle_get_portion_images(self, subject):
         folder_name = self.get_subject_folder(subject)
