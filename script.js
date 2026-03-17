@@ -193,8 +193,12 @@ function renameSubject(index) {
 function deleteSubject(index) {
     const subject = subjects[index];
     if (!subject) return;
-
-    if (confirm(`Are you sure you want to delete "${subject.name}"? All data will be lost.`)) {
+    
+    confirmMessageEl.textContent = `Delete "${subject.name}"? All data will be lost.`;
+    confirmOkBtn.textContent = 'Delete';
+    confirmModalEl.classList.add('visible');
+    
+    pendingDeleteCallback = () => {
         subjects.splice(index, 1);
         saveSubjectOrder();
         renderSubjectList();
@@ -203,33 +207,85 @@ function deleteSubject(index) {
         if (subject.id === selectedSubjectId && subjects.length > 0) {
             selectSubject(subjects[0].id);
         }
-    }
+    };
+    
+    // Focus the Cancel button by default
+    setTimeout(() => confirmCancelBtn.focus(), 10);
 }
 
 function addSubject() {
-    const name = prompt('Enter name for new subject:');
-    if (!name || !name.trim()) return;
-
-    const icon = prompt('Enter icon for new subject (emoji):', '📚');
-    if (!icon) return;
-
-    const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const modal = document.getElementById('addSubjectModal');
+    const nameInput = document.getElementById('newSubjectName');
+    const iconInput = document.getElementById('newSubjectIcon');
+    const iconPreview = document.getElementById('iconPreview');
+    const cancelBtn = document.getElementById('cancelAddSubject');
+    const confirmBtn = document.getElementById('confirmAddSubject');
     
-    // Check if ID already exists
-    if (subjects.some(s => s.id === id)) {
-        alert('A subject with this name already exists. Please choose a different name.');
-        return;
-    }
-
-    subjects.push({
-        id: id,
-        name: name.trim(),
-        icon: icon.trim()
-    });
-
-    saveSubjectOrder();
-    renderSubjectList();
-    selectSubject(id);
+    // Reset form
+    nameInput.value = '';
+    iconInput.value = '📚';
+    iconPreview.textContent = '📚';
+    modal.classList.add('visible');
+    nameInput.focus();
+    
+    // Update icon preview as user types
+    const updatePreview = () => {
+        iconPreview.textContent = iconInput.value || '📚';
+    };
+    iconInput.addEventListener('input', updatePreview);
+    
+    const handleConfirm = () => {
+        const name = nameInput.value.trim();
+        const icon = iconInput.value.trim() || '📚';
+        
+        if (!name) {
+            nameInput.focus();
+            return;
+        }
+        
+        const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        
+        // Check if ID already exists
+        if (subjects.some(s => s.id === id)) {
+            alert('A subject with this name already exists. Please choose a different name.');
+            return;
+        }
+        
+        subjects.push({
+            id: id,
+            name: name,
+            icon: icon
+        });
+        
+        saveSubjectOrder();
+        renderSubjectList();
+        selectSubject(id);
+        
+        cleanup();
+    };
+    
+    const handleCancel = () => {
+        cleanup();
+    };
+    
+    const cleanup = () => {
+        modal.classList.remove('visible');
+        iconInput.removeEventListener('input', updatePreview);
+        confirmBtn.removeEventListener('click', handleConfirm);
+        cancelBtn.removeEventListener('click', handleCancel);
+    };
+    
+    confirmBtn.addEventListener('click', handleConfirm);
+    cancelBtn.addEventListener('click', handleCancel);
+    
+    // Close on escape
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            handleCancel();
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
 }
 
 function saveSubjectOrder() {
