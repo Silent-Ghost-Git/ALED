@@ -430,6 +430,8 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         portion_dir = self.get_portion_dir(subject)
+        if not portion_dir:
+            return
         os.makedirs(portion_dir, exist_ok=True)
 
         original_name = data.get('filename', '')
@@ -722,10 +724,23 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
 def run_server():
     os.chdir(DIRECTORY)
-    with socketserver.TCPServer(("", PORT), CustomHandler) as httpd:
-        print(f"Server running at http://localhost:{PORT}")
-        print(f"Serving files from: {DIRECTORY}")
-        httpd.serve_forever()
+    print(f"About to start server on port {PORT}")
+    try:
+        with socketserver.TCPServer(("", PORT), CustomHandler) as httpd:
+            print(f"Server running at http://localhost:{PORT}")
+            print(f"Serving files from: {DIRECTORY}")
+            try:
+                httpd.serve_forever()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                print(f"Error in serve_forever: {e}")
+                raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Error starting server: {e}")
+        raise
 
 
 if __name__ == "__main__":

@@ -213,6 +213,10 @@ body {
     gap: var(--spacing-sm);
 }
 
+#uploadIconBtn {
+    flex-shrink: 0;
+}
+
 .icon-preview {
     width: 32px;
     height: 32px;
@@ -251,7 +255,7 @@ body {
 
 .subject-item:hover {
     border-color: var(--primary-color);
-    background: #24312c;
+    background: rgba(0, 184, 148, 0.12);
     transform: translateX(4px);
 }
 
@@ -262,6 +266,20 @@ body {
 
 .subject-icon {
     font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.subject-icon-svg {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.subject-icon-svg svg {
+    width: 100%;
+    height: 100%;
+    fill: var(--text-primary);
 }
 
 .subject-name {
@@ -278,12 +296,13 @@ body {
     top: 50%;
     transform: translateY(-50%);
     display: none;
-    flex-direction: row;
-    gap: 4px;
+    flex-direction: column;
+    gap: 2px;
     background: var(--bg-card);
-    padding: 2px 4px;
+    padding: 4px 2px;
     border-radius: var(--radius-sm);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
 }
 
 .subject-rename-btn,

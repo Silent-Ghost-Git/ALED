@@ -134,8 +134,10 @@
             <div class="add-subject-form">
                 <input type="text" id="newSubjectName" class="todo-input" placeholder="Subject name...">
                 <div class="icon-input-container">
-                    <input type="text" id="newSubjectIcon" class="todo-input" placeholder="Icon (emoji or SVG)">
+                    <input type="text" id="newSubjectIcon" class="todo-input" placeholder="Icon (emoji or SVG code)">
+                    <button type="button" id="uploadIconBtn" class="small-btn" title="Upload SVG Icon">📁</button>
                     <div id="iconPreview" class="icon-preview"></div>
+                    <input type="file" id="iconFileInput" accept=".svg,image/svg+xml" style="display: none;">
                 </div>
             </div>
             <div class="confirm-actions">

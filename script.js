@@ -112,8 +112,19 @@ function renderSubjectList() {
     subjects.forEach((subject, index) => {
         const item = document.createElement('div');
         item.className = `subject-item${subject.id === selectedSubjectId ? ' selected' : ''}`;
+        
+        // Check if icon is SVG or emoji
+        let iconHtml;
+        if (subject.icon && subject.icon.trim().startsWith('<svg')) {
+            // It's an SVG, render it safely
+            iconHtml = `<div class="subject-icon subject-icon-svg">${subject.icon}</div>`;
+        } else {
+            // It's an emoji or text
+            iconHtml = `<span class="subject-icon">${subject.icon || '📚'}</span>`;
+        }
+        
         item.innerHTML = `
-            <span class="subject-icon">${subject.icon}</span>
+            ${iconHtml}
             <span class="subject-name">${subject.name}</span>
             <div class="subject-item-actions">
                 <button class="subject-rename-btn" data-index="${index}" title="Rename subject">✏️</button>
@@ -220,6 +231,8 @@ function addSubject() {
     const iconPreview = document.getElementById('iconPreview');
     const cancelBtn = document.getElementById('cancelAddSubject');
     const confirmBtn = document.getElementById('confirmAddSubject');
+    const uploadBtn = document.getElementById('uploadIconBtn');
+    const fileInput = document.getElementById('iconFileInput');
     
     // Reset form
     nameInput.value = '';
@@ -234,9 +247,37 @@ function addSubject() {
     };
     iconInput.addEventListener('input', updatePreview);
     
+    // Handle SVG file upload
+    const handleFileUpload = () => {
+        fileInput.click();
+    };
+    
+    const handleFileSelected = (e) => {
+        const file = e.target.files[0];
+        if (file && file.type === 'image/svg+xml') {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                // Store the SVG content and show preview
+                const svgContent = event.target.result;
+                iconPreview.innerHTML = svgContent;
+                // Keep the SVG content for later use
+                iconPreview.dataset.svgContent = svgContent;
+            };
+            reader.readAsText(file);
+        }
+    };
+    
+    uploadBtn.addEventListener('click', handleFileUpload);
+    fileInput.addEventListener('change', handleFileSelected);
+    
     const handleConfirm = () => {
         const name = nameInput.value.trim();
-        const icon = iconInput.value.trim() || '📚';
+        let icon = iconInput.value.trim() || '📚';
+        
+        // Check if an SVG file was uploaded
+        if (iconPreview.dataset.svgContent) {
+            icon = iconPreview.dataset.svgContent;
+        }
         
         if (!name) {
             nameInput.focus();
@@ -271,8 +312,11 @@ function addSubject() {
     const cleanup = () => {
         modal.classList.remove('visible');
         iconInput.removeEventListener('input', updatePreview);
+        uploadBtn.removeEventListener('click', handleFileUpload);
+        fileInput.removeEventListener('change', handleFileSelected);
         confirmBtn.removeEventListener('click', handleConfirm);
         cancelBtn.removeEventListener('click', handleCancel);
+        delete iconPreview.dataset.svgContent;
     };
     
     confirmBtn.addEventListener('click', handleConfirm);
