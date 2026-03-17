@@ -166,10 +166,37 @@ body {
 }
 
 .section-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
     text-align: left;
     margin-left: 0;
     padding-left: 0;
     padding-bottom: var(--spacing-md);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.add-subject-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+}
+
+.add-subject-btn:hover {
+    background: #059669;
+    transform: scale(1.1);
 }
 
 .subject-list {

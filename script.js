@@ -15,6 +15,7 @@ const TIMER_URL = 'https://flocus.com/online-flip-clock/';
 const MOTIVATION_URL = 'https://chatgpt.com/share/69a710ee-5b14-8000-8f33-b76daeb57578';
 const STORAGE_KEY = 'currentSubjectId';
 const SUBJECT_ORDER_KEY = 'subjectOrder';
+const SUBJECTS_KEY = 'subjects';
 
 const subjectListEl = document.getElementById('subjectList');
 const subjectViewEl = document.getElementById('subjectView');
@@ -33,7 +34,7 @@ const planEditorEl = document.getElementById('planEditor');
 const backBtn = document.getElementById('backBtn');
 const togglePdfBtn = document.getElementById('togglePdfBtn');
 const timerBtn = document.getElementById('timerBtn');
-const motivationBtn = document.getElementById('motivationBtn');
+
 const savePlanBtn = document.getElementById('savePlanBtn');
 const closeSidebarBtn = document.getElementById('closeSidebar');
 const resizeHandleEl = document.querySelector('.resize-handle');
@@ -115,6 +116,8 @@ function renderSubjectList() {
             <span class="subject-icon">${subject.icon}</span>
             <span class="subject-name">${subject.name}</span>
             <div class="subject-item-actions">
+                <button class="subject-rename-btn" data-index="${index}" title="Rename subject">✏️</button>
+                <button class="subject-delete-btn" data-index="${index}" title="Delete subject">🗑️</button>
                 <button class="subject-move-btn" data-dir="-1" data-index="${index}" ${index === 0 ? 'disabled' : ''} aria-label="Move up">&#9650;</button>
                 <button class="subject-move-btn" data-dir="1" data-index="${index}" ${index === subjects.length - 1 ? 'disabled' : ''} aria-label="Move down">&#9660;</button>
             </div>
@@ -132,6 +135,24 @@ function renderSubjectList() {
                 if (nextIndex !== null) {
                     selectSubject(subjects[nextIndex].id);
                 }
+            });
+        });
+
+        // Rename button
+        item.querySelectorAll('.subject-rename-btn').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const btnIndex = Number(button.getAttribute('data-index'));
+                renameSubject(btnIndex);
+            });
+        });
+
+        // Delete button
+        item.querySelectorAll('.subject-delete-btn').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const btnIndex = Number(button.getAttribute('data-index'));
+                deleteSubject(btnIndex);
             });
         });
 
@@ -157,9 +178,129 @@ function moveSubject(index, direction) {
     return targetIndex;
 }
 
+function renameSubject(index) {
+    const subject = subjects[index];
+    if (!subject) return;
+
+    const newName = prompt('Enter new name for subject:', subject.name);
+    if (newName && newName.trim()) {
+        subject.name = newName.trim();
+        saveSubjectsToStorage();
+        renderSubjectList();
+    }
+}
+
+function deleteSubject(index) {
+    const subject = subjects[index];
+    if (!subject) return;
+
+    if (confirm(`Are you sure you want to delete "${subject.name}"? All data will be lost.`)) {
+        subjects.splice(index, 1);
+        saveSubjectOrder();
+        renderSubjectList();
+        
+        // If the deleted subject was selected, select another one
+        if (subject.id === selectedSubjectId && subjects.length > 0) {
+            selectSubject(subjects[0].id);
+        }
+    }
+}
+
+function addSubject() {
+    const name = prompt('Enter name for new subject:');
+    if (!name || !name.trim()) return;
+
+    const icon = prompt('Enter icon for new subject (emoji):', '📚');
+    if (!icon) return;
+
+    const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    
+    // Check if ID already exists
+    if (subjects.some(s => s.id === id)) {
+        alert('A subject with this name already exists. Please choose a different name.');
+        return;
+    }
+
+    subjects.push({
+        id: id,
+        name: name.trim(),
+        icon: icon.trim()
+    });
+
+    saveSubjectOrder();
+    renderSubjectList();
+    selectSubject(id);
+}
+
 function saveSubjectOrder() {
     const order = subjects.map((subject) => subject.id);
     localStorage.setItem(SUBJECT_ORDER_KEY, JSON.stringify(order));
+    // Also save the full subjects data (including names)
+    saveSubjectsToStorage();
+}
+
+function saveSubjectsToStorage() {
+    localStorage.setItem(SUBJECTS_KEY, JSON.stringify(subjects));
+}
+
+function loadSubjectsFromStorage() {
+    // Load saved subjects data first
+    const subjectsRaw = localStorage.getItem(SUBJECTS_KEY);
+    let savedSubjects = null;
+    if (subjectsRaw) {
+        try {
+            savedSubjects = JSON.parse(subjectsRaw);
+        } catch {
+            savedSubjects = null;
+        }
+    }
+    
+    // Load order
+    const orderRaw = localStorage.getItem(SUBJECT_ORDER_KEY);
+    if (orderRaw) {
+        try {
+            const order = JSON.parse(orderRaw);
+            if (savedSubjects) {
+                // Reorder saved subjects based on saved order
+                const subjectMap = new Map(savedSubjects.map(s => [s.id, s]));
+                const orderedSubjects = [];
+                order.forEach(id => {
+                    if (subjectMap.has(id)) {
+                        orderedSubjects.push(subjectMap.get(id));
+                    }
+                });
+                // Add any subjects not in the order
+                savedSubjects.forEach(s => {
+                    if (!order.includes(s.id)) {
+                        orderedSubjects.push(s);
+                    }
+                });
+                return orderedSubjects;
+            } else {
+                // No saved subjects, use order with default subjects
+                const defaultMap = new Map(DEFAULT_SUBJECTS.map(s => [s.id, s]));
+                const orderedSubjects = [];
+                order.forEach(id => {
+                    if (defaultMap.has(id)) {
+                        orderedSubjects.push(defaultMap.get(id));
+                    }
+                });
+                // Add any default subjects not in the order
+                DEFAULT_SUBJECTS.forEach(s => {
+                    if (!order.includes(s.id)) {
+                        orderedSubjects.push(s);
+                    }
+                });
+                return orderedSubjects;
+            }
+        } catch {
+            // If order parsing fails, fall back to saved subjects or defaults
+            return savedSubjects || [...DEFAULT_SUBJECTS];
+        }
+    }
+    
+    // No order saved, use saved subjects or defaults
+    return savedSubjects || [...DEFAULT_SUBJECTS];
 }
 
 function loadSubjectsFromStorage() {
@@ -1014,6 +1155,11 @@ function openMotivation() {
 }
 
 function setupEventListeners() {
+    const addSubjectBtn = document.getElementById('addSubjectBtn');
+    if (addSubjectBtn) {
+        addSubjectBtn.addEventListener('click', addSubject);
+    }
+
     backBtn.addEventListener('click', closeSubjectView);
     uploadPortionBtn.addEventListener('click', () => {
         if (!currentSubject) return;
@@ -1058,7 +1204,6 @@ function setupEventListeners() {
     fullscreenPreviewBtn.addEventListener('click', toggleFullscreenPreview);
     
     timerBtn.addEventListener('click', openTimer);
-    motivationBtn.addEventListener('click', openMotivation);
     savePlanBtn.addEventListener('click', savePlan);
     
     // Plan editor Ctrl+S shortcut and Tab navigation
