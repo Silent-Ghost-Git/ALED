@@ -27,14 +27,13 @@ webbrowser.open(f"http://localhost:{PORT}")
 
 print(f"Server running at http://localhost:{PORT}")
 print("Dashboard is open!")
-print("Press Enter to stop the server")
+print("Press Ctrl+C to stop the server")
 print("=" * 40)
 
 try:
-    input()
+    server_process.wait()
 except KeyboardInterrupt:
-    pass
-finally:
+    print("\nStopping server...")
     if server_process.poll() is None:
         server_process.terminate()
         try:
