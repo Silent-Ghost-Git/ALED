@@ -76,6 +76,29 @@ let currentIndices = {
     todo: 0
 };
 
+function isImageIconValue(value) {
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    return trimmed.startsWith('data:image') ||
+        trimmed.startsWith('/data/') ||
+        trimmed.startsWith('data/') ||
+        /^https?:\/\//i.test(trimmed);
+}
+
+function isSvgIconValue(value) {
+    return typeof value === 'string' && value.trim().startsWith('<svg');
+}
+
+function buildSubjectIconMarkup(icon, subjectName, className = 'subject-icon') {
+    if (isSvgIconValue(icon)) {
+        return `<div class="${className} subject-icon-svg">${icon}</div>`;
+    }
+    if (isImageIconValue(icon)) {
+        return `<div class="${className} subject-icon-image"><img src="${escapeHtml(icon)}" alt="${escapeHtml(subjectName || 'Subject icon')}" style="width:100%;height:100%;object-fit:contain;"></div>`;
+    }
+    return `<span class="${className}">${escapeHtml(icon || '\u{1F4DA}')}</span>`;
+}
+
 async function init() {
     if (!selectedSubjectId && subjects.length) {
         selectedSubjectId = subjects[0].id;
@@ -112,25 +135,20 @@ function renderSubjectList() {
     subjects.forEach((subject, index) => {
         const item = document.createElement('div');
         item.className = `subject-item${subject.id === selectedSubjectId ? ' selected' : ''}`;
-        
-        // Check if icon is SVG or emoji
-        let iconHtml;
-        if (subject.icon && subject.icon.trim().startsWith('<svg')) {
-            // It's an SVG, render it safely
-            iconHtml = `<div class="subject-icon subject-icon-svg">${subject.icon}</div>`;
-        } else {
-            // It's an emoji or text
-            iconHtml = `<span class="subject-icon">${subject.icon || '📚'}</span>`;
-        }
+        const iconHtml = buildSubjectIconMarkup(subject.icon, subject.name);
         
         item.innerHTML = `
             ${iconHtml}
             <span class="subject-name">${subject.name}</span>
             <div class="subject-item-actions">
-                <button class="subject-rename-btn" data-index="${index}" title="Rename subject">✏️</button>
-                <button class="subject-delete-btn" data-index="${index}" title="Delete subject">🗑️</button>
-                <button class="subject-move-btn" data-dir="-1" data-index="${index}" ${index === 0 ? 'disabled' : ''} aria-label="Move up">&#9650;</button>
-                <button class="subject-move-btn" data-dir="1" data-index="${index}" ${index === subjects.length - 1 ? 'disabled' : ''} aria-label="Move down">&#9660;</button>
+                <div class="subject-edit-actions">
+                    <button class="subject-rename-btn" data-index="${index}" title="Rename subject">✏️</button>
+                    <button class="subject-delete-btn" data-index="${index}" title="Delete subject">🗑️</button>
+                </div>
+                <div class="subject-move-actions">
+                    <button class="subject-move-btn" data-dir="-1" data-index="${index}" ${index === 0 ? 'disabled' : ''} aria-label="Move up">&#9650;</button>
+                    <button class="subject-move-btn" data-dir="1" data-index="${index}" ${index === subjects.length - 1 ? 'disabled' : ''} aria-label="Move down">&#9660;</button>
+                </div>
             </div>
         `;
         // Single-click to select, double-click to open subject
@@ -209,7 +227,19 @@ function deleteSubject(index) {
     confirmOkBtn.textContent = 'Delete';
     confirmModalEl.classList.add('visible');
     
-    pendingDeleteCallback = () => {
+    pendingDeleteCallback = async () => {
+        // First, try to delete the folder on the server
+        try {
+            await fetch('/api/subjects', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subject: subject.id, subjectName: subject.name })
+            });
+        } catch (error) {
+            console.error('Failed to delete subject folder:', error);
+        }
+        
+        // Then remove from local storage and UI
         subjects.splice(index, 1);
         saveSubjectOrder();
         renderSubjectList();
@@ -233,105 +263,314 @@ function addSubject() {
     const confirmBtn = document.getElementById('confirmAddSubject');
     const uploadBtn = document.getElementById('uploadIconBtn');
     const fileInput = document.getElementById('iconFileInput');
-    
-    // Reset form
-    nameInput.value = '';
-    iconInput.value = '📚';
-    iconPreview.textContent = '📚';
-    modal.classList.add('visible');
-    nameInput.focus();
-    
-    // Update icon preview as user types
+
+    if (!modal || !nameInput || !iconInput || !iconPreview || !cancelBtn || !confirmBtn || !uploadBtn || !fileInput) {
+        return;
+    }
+
+    const defaultIcon = '\u{1F4DA}';
+    let isCleanedUp = false;
+    let isSubmitting = false;
+    const defaultConfirmLabel = confirmBtn.textContent;
+    const normalizeIconText = (value) => String(value || '').trim();
+    const normalizeDataImageUrl = (value) => normalizeIconText(value).replace(/\s+/g, '');
+
     const updatePreview = () => {
-        iconPreview.textContent = iconInput.value || '📚';
+        const raw = normalizeIconText(iconInput.value);
+        if (!raw) {
+            iconPreview.innerHTML = defaultIcon;
+            return;
+        }
+
+        if (raw.startsWith('data:image')) {
+            const src = normalizeDataImageUrl(raw);
+            iconPreview.innerHTML = `<img src="${src}" alt="icon" style="width:100%;height:100%;object-fit:contain;">`;
+            iconPreview.dataset.iconContent = src;
+            iconPreview.dataset.iconType = 'image';
+            return;
+        }
+
+        if (/^https?:\/\//i.test(raw)) {
+            iconPreview.innerHTML = `<img src="${raw}" alt="icon" style="width:100%;height:100%;object-fit:contain;">`;
+            iconPreview.dataset.iconContent = raw;
+            iconPreview.dataset.iconType = 'image';
+            return;
+        }
+
+        if (raw.startsWith('<svg')) {
+            iconPreview.innerHTML = raw;
+            iconPreview.dataset.iconContent = raw;
+            iconPreview.dataset.iconType = 'svg';
+            return;
+        }
+
+        if (raw) {
+            iconPreview.innerHTML = raw;
+            delete iconPreview.dataset.iconContent;
+            delete iconPreview.dataset.iconType;
+        } else {
+            iconPreview.innerHTML = defaultIcon;
+        }
     };
-    iconInput.addEventListener('input', updatePreview);
-    
-    // Handle SVG file upload
+
     const handleFileUpload = () => {
         fileInput.click();
     };
-    
+
+    const optimizeIconDataUrl = (dataUrl, maxSize = 64) => new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+            const targetWidth = Math.max(1, Math.round(img.width * scale));
+            const targetHeight = Math.max(1, Math.round(img.height * scale));
+
+            const canvas = document.createElement('canvas');
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                resolve(dataUrl);
+                return;
+            }
+
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.clearRect(0, 0, targetWidth, targetHeight);
+            ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+            // Use JPEG for fast/small icons; fall back to PNG if unavailable.
+            let optimized = canvas.toDataURL('image/jpeg', 0.78);
+            if (!optimized.startsWith('data:image/jpeg')) {
+                optimized = canvas.toDataURL('image/png');
+            }
+            resolve(optimized);
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+    });
+
     const handleFileSelected = (e) => {
         const file = e.target.files[0];
-        if (file && file.type === 'image/svg+xml') {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                // Store the SVG content and show preview
-                const svgContent = event.target.result;
-                iconPreview.innerHTML = svgContent;
-                // Keep the SVG content for later use
-                iconPreview.dataset.svgContent = svgContent;
-            };
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            const fileContent = event.target.result;
+            if (file.type === 'image/svg+xml') {
+                iconPreview.innerHTML = fileContent;
+                iconPreview.dataset.iconContent = fileContent;
+                iconPreview.dataset.iconType = 'svg';
+            } else if (file.type.startsWith('image/')) {
+                const optimizedContent = await optimizeIconDataUrl(fileContent);
+                iconPreview.innerHTML = `<img src="${optimizedContent}" alt="icon" style="width:100%;height:100%;object-fit:contain;">`;
+                iconPreview.dataset.iconContent = optimizedContent;
+                iconPreview.dataset.iconType = 'image';
+            }
+            iconInput.value = '';
+        };
+
+        if (file.type === 'image/svg+xml') {
             reader.readAsText(file);
+        } else {
+            reader.readAsDataURL(file);
         }
     };
-    
-    uploadBtn.addEventListener('click', handleFileUpload);
-    fileInput.addEventListener('change', handleFileSelected);
-    
-    const handleConfirm = () => {
-        const name = nameInput.value.trim();
-        let icon = iconInput.value.trim() || '📚';
-        
-        // Check if an SVG file was uploaded
-        if (iconPreview.dataset.svgContent) {
-            icon = iconPreview.dataset.svgContent;
+
+    const ensureSubjectFolder = async (subjectId) => {
+        try {
+            const createResponse = await fetch('/api/subjects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subject: subjectId })
+            });
+            if (createResponse.ok) return true;
+        } catch (error) {
+            console.warn('Primary subject create endpoint failed, trying fallback:', error);
         }
-        
+
+        // Backward-compatible fallback for older server instances:
+        // saving an empty plan will create data/<subject>/plan and parent folders.
+        try {
+            const fallbackResponse = await fetch('/api/plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subject: subjectId, content: '' })
+            });
+            return fallbackResponse.ok;
+        } catch (error) {
+            console.error('Fallback subject folder creation failed:', error);
+            return false;
+        }
+    };
+
+    const uploadSubjectIcon = async (subjectId, iconValue) => {
+        const normalized = normalizeDataImageUrl(iconValue);
+        if (!normalized.startsWith('data:image')) {
+            return iconValue;
+        }
+
+        const mimeMatch = normalized.match(/^data:([^;]+);base64,/i);
+        const mimeType = mimeMatch ? mimeMatch[1].toLowerCase() : 'image/png';
+        const extMap = {
+            'image/png': '.png',
+            'image/jpeg': '.jpg',
+            'image/jpg': '.jpg',
+            'image/webp': '.webp',
+            'image/gif': '.gif',
+            'image/svg+xml': '.svg'
+        };
+        const ext = extMap[mimeType] || '.png';
+
+        const response = await fetch('/api/subject-icon/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subject: subjectId,
+                filename: `icon${ext}`,
+                mime_type: mimeType,
+                icon_base64: normalized
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Icon upload failed');
+        }
+
+        const data = await response.json();
+        if (!data || !data.url) {
+            throw new Error('Icon upload returned no URL');
+        }
+        return data.url;
+    };
+
+    const setSubmittingState = (submitting) => {
+        confirmBtn.disabled = submitting;
+        confirmBtn.textContent = submitting ? 'Adding...' : defaultConfirmLabel;
+    };
+
+    const handleConfirm = async () => {
+        if (isSubmitting) return;
+        isSubmitting = true;
+        setSubmittingState(true);
+
+        const name = nameInput.value.trim();
+        const rawIconInput = normalizeIconText(iconInput.value);
+        let icon = rawIconInput || defaultIcon;
+        if (rawIconInput.startsWith('data:image')) {
+            icon = normalizeDataImageUrl(rawIconInput);
+        }
+
+        if (iconPreview.dataset.iconContent) {
+            const iconType = iconPreview.dataset.iconType;
+            const iconContent = iconPreview.dataset.iconContent;
+            if (iconType === 'svg' || iconType === 'image') {
+                icon = iconContent;
+            }
+        }
+
         if (!name) {
             nameInput.focus();
+            isSubmitting = false;
+            setSubmittingState(false);
             return;
         }
-        
-        const id = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-        
-        // Check if ID already exists
-        if (subjects.some(s => s.id === id)) {
-            alert('A subject with this name already exists. Please choose a different name.');
+
+        const baseId = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || `subject-${Date.now()}`;
+        let id = baseId;
+        let counter = 2;
+        while (subjects.some((s) => s.id === id)) {
+            id = `${baseId}-${counter}`;
+            counter += 1;
+        }
+
+        const created = await ensureSubjectFolder(id);
+        if (!created) {
+            alert('Could not create subject data folder. Please restart server and try again.');
+            isSubmitting = false;
+            setSubmittingState(false);
             return;
         }
-        
-        subjects.push({
-            id: id,
-            name: name,
-            icon: icon
-        });
-        
+
+        if (typeof icon === 'string' && icon.trim().startsWith('data:image')) {
+            try {
+                icon = await uploadSubjectIcon(id, icon);
+            } catch (error) {
+                console.error('Failed to upload subject icon:', error);
+                alert('Could not save subject icon image to server.');
+                isSubmitting = false;
+                setSubmittingState(false);
+                return;
+            }
+        }
+
+        subjects.push({ id, name, icon });
         saveSubjectOrder();
         renderSubjectList();
         selectSubject(id);
-        
+        isSubmitting = false;
+        setSubmittingState(false);
         cleanup();
     };
-    
-    const handleCancel = () => {
-        cleanup();
+
+    const handleInputEnter = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleConfirm();
+        }
     };
-    
+
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            cleanup();
+        }
+    };
+
+    const handleBackdropClick = (e) => {
+        if (e.target === modal) {
+            cleanup();
+        }
+    };
+
     const cleanup = () => {
+        if (isCleanedUp) return;
+        isCleanedUp = true;
+        setSubmittingState(false);
+        isSubmitting = false;
+
         modal.classList.remove('visible');
         iconInput.removeEventListener('input', updatePreview);
+        nameInput.removeEventListener('keydown', handleInputEnter);
+        iconInput.removeEventListener('keydown', handleInputEnter);
         uploadBtn.removeEventListener('click', handleFileUpload);
         fileInput.removeEventListener('change', handleFileSelected);
         confirmBtn.removeEventListener('click', handleConfirm);
-        cancelBtn.removeEventListener('click', handleCancel);
-        delete iconPreview.dataset.svgContent;
+        cancelBtn.removeEventListener('click', cleanup);
+        modal.removeEventListener('click', handleBackdropClick);
+        document.removeEventListener('keydown', handleEscape);
+        delete iconPreview.dataset.iconContent;
+        delete iconPreview.dataset.iconType;
     };
-    
+
+    nameInput.value = '';
+    iconInput.value = '';
+    fileInput.value = '';
+    iconPreview.innerHTML = defaultIcon;
+    iconPreview.dataset.iconContent = '';
+    iconPreview.dataset.iconType = '';
+    modal.classList.add('visible');
+    nameInput.focus();
+
+    iconInput.addEventListener('input', updatePreview);
+    nameInput.addEventListener('keydown', handleInputEnter);
+    iconInput.addEventListener('keydown', handleInputEnter);
+    uploadBtn.addEventListener('click', handleFileUpload);
+    fileInput.addEventListener('change', handleFileSelected);
     confirmBtn.addEventListener('click', handleConfirm);
-    cancelBtn.addEventListener('click', handleCancel);
-    
-    // Close on escape
-    const handleEscape = (e) => {
-        if (e.key === 'Escape') {
-            handleCancel();
-            document.removeEventListener('keydown', handleEscape);
-        }
-    };
+    cancelBtn.addEventListener('click', cleanup);
+    modal.addEventListener('click', handleBackdropClick);
     document.addEventListener('keydown', handleEscape);
 }
-
 function saveSubjectOrder() {
     const order = subjects.map((subject) => subject.id);
     localStorage.setItem(SUBJECT_ORDER_KEY, JSON.stringify(order));
@@ -435,13 +674,16 @@ async function openSubject(subject) {
     updateBackButton();
 
     if (currentSubjectTitleEl) {
-        currentSubjectTitleEl.textContent = `${subject.icon} ${subject.name}`;
+        const titleIconHtml = buildSubjectIconMarkup(subject.icon, subject.name, 'subject-title-icon');
+        currentSubjectTitleEl.innerHTML = `${titleIconHtml}<span class="subject-title-text">${escapeHtml(subject.name)}</span>`;
     }
 
-    await loadPortionImages(subject.id);
-    await loadWorksheets(subject.id);
-    await loadPlan(subject.id);
-    await loadTodos(subject.id);
+    await Promise.all([
+        loadPortionImages(subject.id),
+        loadWorksheets(subject.id),
+        loadPlan(subject.id),
+        loadTodos(subject.id)
+    ]);
 
     subjectPanelEl.style.display = 'none';
     subjectViewEl.classList.add('active');

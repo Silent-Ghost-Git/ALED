@@ -31,6 +31,7 @@ SUBJECT_FOLDER_MAP = {
 }
 
 ALLOWED_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
+ALLOWED_ICON_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'}
 ALLOWED_WORKSHEET_EXTENSIONS = {'.pdf', '.docx', '.doc', '.png', '.jpg', '.jpeg', '.gif', '.webp'}
 ALLOWED_PORTION_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg', '.mp4', '.webm', '.ogg', '.mov', '.avi', '.mp3', '.wav', '.ogg', '.flac', '.m4a', '.doc', '.docx'}
 
@@ -73,6 +74,20 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         parsed_path = urllib.parse.urlparse(self.path)
         path = parsed_path.path
+
+        if path == '/api/subjects':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_create_subject(data)
+            return
+
+        if path == '/api/subject-icon/upload':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_upload_subject_icon(data)
+            return
 
         if path == '/api/plan':
             data = self.read_json_body()
@@ -139,6 +154,73 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
         self.send_error(404, 'Not Found')
 
+    def do_DELETE(self):
+        parsed_path = urllib.parse.urlparse(self.path)
+        path = parsed_path.path
+
+        if path == '/api/subjects':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_delete_subject(data)
+            return
+
+        self.send_error(404, 'Not Found')
+
+    def handle_create_subject(self, data):
+        subject = data.get('subject')
+        if not subject:
+            self.send_json({'error': 'Subject name required'}, 400)
+            return
+
+        subject_dir = self.get_subject_data_dir(subject)
+        if not subject_dir:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        try:
+            os.makedirs(subject_dir, exist_ok=True)
+            os.makedirs(self.get_portion_dir(subject), exist_ok=True)
+            os.makedirs(self.get_worksheets_dir(subject), exist_ok=True)
+            plan_path = self.get_plan_path(subject)
+            if plan_path:
+                os.makedirs(os.path.dirname(plan_path), exist_ok=True)
+
+            self.send_json({'success': True, 'folder': os.path.basename(subject_dir)})
+        except Exception as e:
+            self.send_json({'error': f'Failed to create subject folder: {str(e)}'}, 500)
+
+    def handle_delete_subject(self, data):
+        subject = data.get('subject')
+        subject_name = data.get('subjectName')
+        if not subject and not subject_name:
+            self.send_json({'error': 'Subject name required'}, 400)
+            return
+
+        candidates = []
+        if isinstance(subject, str) and subject.strip():
+            candidates.append(subject.strip())
+        if isinstance(subject_name, str) and subject_name.strip() and subject_name.strip() not in candidates:
+            candidates.append(subject_name.strip())
+
+        deleted_any = False
+        import shutil
+        for candidate in candidates:
+            subject_dir = self.get_subject_data_dir(candidate)
+            if not subject_dir or not os.path.exists(subject_dir):
+                continue
+            try:
+                shutil.rmtree(subject_dir)
+                deleted_any = True
+            except Exception as e:
+                self.send_json({'error': f'Failed to delete folder: {str(e)}'}, 500)
+                return
+
+        if deleted_any:
+            self.send_json({'success': True, 'message': 'Deleted subject folder'})
+        else:
+            self.send_json({'success': True, 'message': 'Folder already deleted or does not exist'})
+
     def read_json_body(self):
         content_length = int(self.headers.get('Content-Length', 0))
         raw = self.rfile.read(content_length)
@@ -151,7 +233,15 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def get_subject_folder(self, subject):
         if not isinstance(subject, str):
             return None
-        return SUBJECT_FOLDER_MAP.get(subject.lower())
+        # First try the map
+        folder = SUBJECT_FOLDER_MAP.get(subject.lower())
+        if folder:
+            return folder
+        # If not in map, use the subject name directly (capitalized)
+        # Sanitize the subject name to be a valid folder name
+        import re
+        sanitized = re.sub(r'[<>:"/\\|?*]', '_', subject)
+        return sanitized.title().replace(' ', '')
 
     def get_subject_data_dir(self, subject):
         folder_name = self.get_subject_folder(subject)
@@ -188,6 +278,21 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         if not portion_dir:
             return None
         return os.path.join(portion_dir, 'order.json')
+
+    def infer_icon_extension(self, filename, mime_type):
+        ext = Path(filename).suffix.lower()
+        if ext in ALLOWED_ICON_EXTENSIONS:
+            return ext
+
+        mime_map = {
+            'image/png': '.png',
+            'image/jpeg': '.jpg',
+            'image/jpg': '.jpg',
+            'image/webp': '.webp',
+            'image/gif': '.gif',
+            'image/svg+xml': '.svg'
+        }
+        return mime_map.get(str(mime_type).lower(), '.png')
 
     def sanitize_filename(self, name):
         base = Path(name or '').name.strip()
@@ -452,6 +557,68 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         self.write_order(subject, current_order)
 
         self.send_json({'success': True, 'name': final_name})
+
+    def handle_upload_subject_icon(self, data):
+        subject = data.get('subject', '')
+        folder_name = self.get_subject_folder(subject)
+        if not folder_name:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        icon_base64 = data.get('icon_base64', '')
+        if not isinstance(icon_base64, str) or not icon_base64.strip():
+            self.send_json({'error': 'icon_base64 is required'}, 400)
+            return
+
+        raw = icon_base64.strip()
+        mime_type = data.get('mime_type', '')
+        if raw.lower().startswith('data:') and ',' in raw:
+            header, raw_data = raw.split(',', 1)
+            raw = raw_data
+            if ';' in header:
+                mime_type = header[5:].split(';', 1)[0]
+            else:
+                mime_type = header[5:]
+
+        try:
+            icon_bytes = base64.b64decode(raw, validate=True)
+        except (ValueError, binascii.Error):
+            self.send_json({'error': 'Invalid base64 icon data'}, 400)
+            return
+
+        if len(icon_bytes) > 2 * 1024 * 1024:
+            self.send_json({'error': 'Icon too large (max 2MB)'}, 400)
+            return
+
+        subject_dir = self.get_subject_data_dir(subject)
+        if not subject_dir:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+        os.makedirs(subject_dir, exist_ok=True)
+
+        original_name = data.get('filename', '')
+        ext = self.infer_icon_extension(original_name, mime_type)
+        if ext not in ALLOWED_ICON_EXTENSIONS:
+            self.send_json({'error': 'Unsupported icon format'}, 400)
+            return
+
+        # Keep one icon per subject by replacing old icon.* files.
+        for existing in os.listdir(subject_dir):
+            if existing.startswith('icon') and Path(existing).suffix.lower() in ALLOWED_ICON_EXTENSIONS:
+                existing_path = os.path.join(subject_dir, existing)
+                if os.path.isfile(existing_path):
+                    try:
+                        os.remove(existing_path)
+                    except OSError:
+                        pass
+
+        final_name = f'icon{ext}'
+        final_path = os.path.join(subject_dir, final_name)
+        with open(final_path, 'wb') as file:
+            file.write(icon_bytes)
+
+        url = '/data/{}/{}'.format(urllib.parse.quote(folder_name), urllib.parse.quote(final_name))
+        self.send_json({'success': True, 'name': final_name, 'url': url})
 
     def handle_reorder_portion_images(self, data):
         subject = data.get('subject', '')

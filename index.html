@@ -24,7 +24,7 @@
         <section id="subjectPanel">
             <h2 class="section-title">
                 Select Subject
-                <button id="addSubjectBtn" class="add-subject-btn" title="Add new subject">+</button>
+                <button id="addSubjectBtn" class="add-subject-btn" title="Add new subject" aria-label="Add new subject">+</button>
             </h2>
             <div id="subjectList" class="subject-list"></div>
         </section>
@@ -134,15 +134,15 @@
             <div class="add-subject-form">
                 <input type="text" id="newSubjectName" class="todo-input" placeholder="Subject name...">
                 <div class="icon-input-container">
-                    <input type="text" id="newSubjectIcon" class="todo-input" placeholder="Icon (emoji or SVG code)">
-                    <button type="button" id="uploadIconBtn" class="small-btn" title="Upload SVG Icon">📁</button>
+                    <input type="text" id="newSubjectIcon" class="todo-input" placeholder="Icon (emoji or code)">
+                    <button type="button" id="uploadIconBtn" class="small-btn" title="Upload Icon Image">Upload</button>
                     <div id="iconPreview" class="icon-preview"></div>
-                    <input type="file" id="iconFileInput" accept=".svg,image/svg+xml" style="display: none;">
+                    <input type="file" id="iconFileInput" accept="image/*,.svg" style="display: none;">
                 </div>
             </div>
             <div class="confirm-actions">
-                <button id="cancelAddSubject" class="save-btn">Cancel</button>
-                <button id="confirmAddSubject" class="save-btn">Add</button>
+                <button type="button" id="cancelAddSubject" class="save-btn">Cancel</button>
+                <button type="button" id="confirmAddSubject" class="save-btn">Add</button>
             </div>
         </div>
     </div>
