@@ -116,6 +116,97 @@
         <div id="previewContent" class="preview-content"></div>
     </aside>
 
+    <aside id="timerSidebar" class="timer-sidebar">
+        <div class="resize-handle-timer"></div>
+        <div class="sidebar-header">
+            <h3>Timer ⏰</h3>
+            <div class="sidebar-header-actions">
+                <button id="closeTimerBtn" class="close-sidebar-btn">&times;</button>
+            </div>
+        </div>
+        <div class="timer-content">
+            <div class="flip-clock">
+                <div class="flip-digit hours-group" data-digit="hour-tens" style="display: none;">
+                    <div class="digit-static">
+                        <div class="digit-top"><span>0</span></div>
+                        <div class="digit-bottom"><span>0</span></div>
+                    </div>
+                    <div class="flip-card" style="display: none;">
+                        <div class="flip-card-top"><span>0</span></div>
+                        <div class="flip-card-bottom"><span>0</span></div>
+                    </div>
+                </div>
+                <div class="flip-digit hours-group" data-digit="hour-ones" style="display: none;">
+                    <div class="digit-static">
+                        <div class="digit-top"><span>0</span></div>
+                        <div class="digit-bottom"><span>0</span></div>
+                    </div>
+                    <div class="flip-card" style="display: none;">
+                        <div class="flip-card-top"><span>0</span></div>
+                        <div class="flip-card-bottom"><span>0</span></div>
+                    </div>
+                </div>
+                <div class="flip-separator hours-group" style="display: none;">:</div>
+                <div class="flip-digit" data-digit="minute-tens">
+                    <div class="digit-static">
+                        <div class="digit-top"><span>0</span></div>
+                        <div class="digit-bottom"><span>0</span></div>
+                    </div>
+                    <div class="flip-card" style="display: none;">
+                        <div class="flip-card-top"><span>0</span></div>
+                        <div class="flip-card-bottom"><span>0</span></div>
+                    </div>
+                </div>
+                <div class="flip-digit" data-digit="minute-ones">
+                    <div class="digit-static">
+                        <div class="digit-top"><span>0</span></div>
+                        <div class="digit-bottom"><span>0</span></div>
+                    </div>
+                    <div class="flip-card" style="display: none;">
+                        <div class="flip-card-top"><span>0</span></div>
+                        <div class="flip-card-bottom"><span>0</span></div>
+                    </div>
+                </div>
+                <div class="flip-separator">:</div>
+                <div class="flip-digit" data-digit="second-tens">
+                    <div class="digit-static">
+                        <div class="digit-top"><span>0</span></div>
+                        <div class="digit-bottom"><span>0</span></div>
+                    </div>
+                    <div class="flip-card" style="display: none;">
+                        <div class="flip-card-top"><span>0</span></div>
+                        <div class="flip-card-bottom"><span>0</span></div>
+                    </div>
+                </div>
+                <div class="flip-digit" data-digit="second-ones">
+                    <div class="digit-static">
+                        <div class="digit-top"><span>0</span></div>
+                        <div class="digit-bottom"><span>0</span></div>
+                    </div>
+                    <div class="flip-card" style="display: none;">
+                        <div class="flip-card-top"><span>0</span></div>
+                        <div class="flip-card-bottom"><span>0</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="timer-controls" id="timerControls">
+                <div class="timer-buttons">
+                    <button id="timerStartBtn" class="timer-start-btn">Start</button>
+                    <button id="timerResetBtn" class="timer-reset-btn" style="display: none;">Reset</button>
+                </div>
+                <div class="timer-settings">
+                    <div class="timer-setting-row">
+                        <label for="timerDuration">Timer Duration (minutes):</label>
+                        <input type="number" id="timerDuration" min="1" max="1440" value="5" class="timer-input">
+                    </div>
+                </div>
+                <div class="timer-footer">
+                    <button id="timerFullscreenBtn" class="timer-icon-btn" title="Fullscreen">⛶</button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
     <div id="sidebarOverlay" class="sidebar-overlay"></div>
 
     <div id="confirmModal" class="confirm-modal">

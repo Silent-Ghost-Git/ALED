@@ -39,6 +39,8 @@
     --spacing-md: 16px;
     --spacing-lg: 24px;
     --spacing-xl: 32px;
+    --spacing-2xl: 48px;
+    --spacing-3xl: 64px;
     
     /* Border radius */
     --radius-sm: 6px;
@@ -1633,6 +1635,493 @@ body {
 
 /* 
     ============================================
+    TIMER SIDEBAR
+    ============================================
+*/
+.timer-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-min-width);
+    max-width: var(--sidebar-max-width);
+    background: #000;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    z-index: 1003;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.timer-sidebar.open {
+    transform: translateX(0);
+}
+
+.timer-sidebar.fullscreen {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    z-index: 2000;
+}
+
+.resize-handle-timer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 12px;
+    background: transparent;
+    cursor: ew-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    z-index: 10;
+}
+
+.resize-handle-timer::after {
+    content: '';
+    width: 3px;
+    height: 40px;
+    background: var(--text-muted);
+    border-radius: 3px;
+    opacity: 0.4;
+}
+
+.resize-handle-timer:hover::after {
+    opacity: 0.8;
+    background: var(--primary-color);
+}
+
+.timer-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-2xl) var(--spacing-xl);
+    padding-top: calc(var(--spacing-2xl) + 50px);
+    gap: var(--spacing-2xl);
+}
+
+/* 
+    ============================================
+    FLIP CLOCK
+    ============================================
+*/
+.flip-clock {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    margin: auto 0;
+    margin-bottom: var(--spacing-xl);
+}
+
+/* Flip Digit Container */
+.flip-digit {
+    position: relative;
+    width: 120px;
+    height: 180px;
+    perspective: 1000px;
+}
+
+/* Static digit (always visible) */
+.digit-static {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #1a1a1a;
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.digit-static::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    height: 50%;
+    background: transparent;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.5);
+    z-index: 1;
+}
+
+.digit-static::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 50%;
+    background: transparent;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    border-top: 1px solid rgba(0, 0, 0, 0.5);
+    z-index: 1;
+}
+
+/* Static digit halves */
+.digit-static .digit-top,
+.digit-static .digit-bottom {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 50%;
+    overflow: hidden;
+}
+
+.digit-static .digit-top {
+    top: 0;
+    background: linear-gradient(to bottom, #2a2a2a, #1a1a1a);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+.digit-static .digit-bottom {
+    bottom: 0;
+    background: linear-gradient(to top, #2a2a2a, #1a1a1a);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    border-top: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+/* Spans for static digits */
+.digit-static .digit-top span,
+.digit-static .digit-bottom span {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 180px;
+    line-height: 180px;
+    text-align: center;
+    color: #fff;
+    font-size: 80px;
+    font-weight: 700;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.digit-static .digit-top span {
+    top: 0;
+}
+
+.digit-static .digit-bottom span {
+    top: -90px;
+}
+
+/* Flip card (animated) */
+.flip-card {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 100%;
+    transform-style: preserve-3d;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.flip-card-top {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 50%;
+    background: linear-gradient(to bottom, #2a2a2a, #1a1a1a);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    transform-origin: bottom;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+}
+
+.flip-card-bottom {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 50%;
+    background: linear-gradient(to top, #2a2a2a, #1a1a1a);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    border-top: 1px solid rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    transform-origin: top;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    transform: rotateX(90deg);
+}
+
+.flip-card-top span,
+.flip-card-bottom span {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 200%;
+    text-align: center;
+    color: #fff;
+    font-size: 80px;
+    font-weight: 700;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 180px;
+}
+
+.flip-card-top span {
+    top: 0;
+}
+
+.flip-card-bottom span {
+    bottom: 0;
+}
+
+/* Flip animation classes - sequential: top then bottom */
+.flip-digit.flipping .flip-card-top {
+    animation: flipCardTop 0.18s ease-in forwards;
+}
+
+.flip-digit.flipping .flip-card-bottom {
+    animation: flipCardBottom 0.18s ease-out 0.18s forwards;
+}
+
+@keyframes flipCardTop {
+    0% { transform: rotateX(0deg); }
+    100% { transform: rotateX(-90deg); }
+}
+
+@keyframes flipCardBottom {
+    0% { transform: rotateX(90deg); }
+    100% { transform: rotateX(0deg); }
+}
+
+.flip-separator {
+    font-size: 100px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 var(--spacing-xs);
+    align-self: center;
+}
+
+.flip-clock.show-hours .hours-group {
+    display: flex !important;
+}
+
+.flip-clock:not(.show-hours) .hours-group {
+    display: none !important;
+}
+
+/* 
+    ============================================
+    TIMER CONTROLS
+    ============================================
+*/
+.timer-start-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: var(--spacing-md) var(--spacing-2xl);
+    border-radius: 30px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 15px rgba(0, 184, 148, 0.4);
+}
+
+.timer-start-btn:hover {
+    background: var(--primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 184, 148, 0.5);
+}
+
+.timer-start-btn:active {
+    transform: translateY(0);
+}
+
+.timer-start-btn.paused {
+    background: var(--accent);
+    color: #1a1a1a;
+    box-shadow: 0 4px 15px rgba(253, 203, 110, 0.4);
+}
+
+.timer-start-btn.paused:hover {
+    background: #f9ca24;
+    box-shadow: 0 6px 20px rgba(253, 203, 110, 0.5);
+}
+
+.timer-buttons {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: center;
+    align-items: center;
+}
+
+.timer-reset-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: 30px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.timer-reset-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+}
+
+/* 
+    ============================================
+    TIMER SETTINGS
+    ============================================
+*/
+.timer-settings {
+    background: #1a1a1a;
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+    width: 100%;
+    max-width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.timer-setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+}
+
+.timer-setting-row .timer-label {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.timer-setting-row label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.timer-input {
+    width: 80px;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 1rem;
+    text-align: center;
+}
+
+.timer-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+/* 
+    ============================================
+    TIMER FOOTER
+    ============================================
+*/
+.timer-footer {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: center;
+}
+
+.timer-icon-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #fff;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 1.2rem;
+}
+
+.timer-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary-color);
+}
+
+/* Controls fade-out on inactivity */
+.timer-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-lg);
+    width: 100%;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+.timer-controls.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* 
+    ============================================
+    TIMER IN FULLSCREEN
+    ============================================
+*/
+.timer-sidebar:fullscreen .timer-content,
+:fullscreen .timer-sidebar .timer-content {
+    padding: var(--spacing-2xl);
+}
+
+.timer-sidebar:fullscreen .flip-digit,
+:fullscreen .timer-sidebar .flip-digit {
+    width: 200px;
+    height: 300px;
+}
+
+.timer-sidebar:fullscreen .digit-static .digit-top span,
+.timer-sidebar:fullscreen .digit-static .digit-bottom span,
+.timer-sidebar:fullscreen .flip-card-top span,
+.timer-sidebar:fullscreen .flip-card-bottom span,
+:fullscreen .timer-sidebar .digit-static .digit-top span,
+:fullscreen .timer-sidebar .digit-static .digit-bottom span,
+:fullscreen .timer-sidebar .flip-card-top span,
+:fullscreen .timer-sidebar .flip-card-bottom span {
+    height: 300px;
+    line-height: 300px;
+    font-size: 120px;
+}
+
+.timer-sidebar:fullscreen .digit-static .digit-bottom span,
+:fullscreen .timer-sidebar .digit-static .digit-bottom span {
+    top: -150px;
+}
+
+.timer-sidebar:fullscreen .flip-separator,
+:fullscreen .timer-sidebar .flip-separator {
+    font-size: 160px;
+}
+
+.timer-sidebar:fullscreen .timer-start-btn,
+:fullscreen .timer-sidebar .timer-start-btn {
+    font-size: 1.5rem;
+    padding: var(--spacing-lg) var(--spacing-3xl);
+}
+
+/* 
+    ============================================
     RESPONSIVE
     ============================================
 */
@@ -1662,6 +2151,12 @@ body {
     }
 
     .preview-sidebar {
+        width: 50vw;
+        min-width: 50vw;
+        max-width: 50vw;
+    }
+
+    .timer-sidebar {
         width: 50vw;
         min-width: 50vw;
         max-width: 50vw;

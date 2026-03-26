@@ -52,6 +52,17 @@ const previewContentEl = document.getElementById('previewContent');
 const closePreviewBtn = document.getElementById('closePreviewBtn');
 const fullscreenPreviewBtn = document.getElementById('fullscreenPreviewBtn');
 const resizeHandlePreviewEl = document.querySelector('.resize-handle-preview');
+
+// Timer sidebar elements
+const timerSidebarEl = document.getElementById('timerSidebar');
+const closeTimerBtn = document.getElementById('closeTimerBtn');
+const timerStartBtn = document.getElementById('timerStartBtn');
+const timerResetBtn = document.getElementById('timerResetBtn');
+const timerDurationInput = document.getElementById('timerDuration');
+const timerFullscreenBtn = document.getElementById('timerFullscreenBtn');
+const timerControlsEl = document.getElementById('timerControls');
+const resizeHandleTimerEl = document.querySelector('.resize-handle-timer');
+
 const DESKTOP_PDF_MIN_WIDTH = 420;
 const SIDEBAR_VIEWPORT_MAX_RATIO = 0.5;
 
@@ -74,6 +85,31 @@ let currentIndices = {
     worksheet: 0,
     plan: 0,
     todo: 0
+};
+
+// Timer state
+let timerState = {
+    isRunning: false,
+    isPaused: false,
+    totalSeconds: 300, // 5 minutes default
+    remainingSeconds: 300,
+    startTime: null,
+    intervalId: null,
+    audioContext: null
+};
+
+// Controls fade-out state
+let inactivityTimer = null;
+const INACTIVITY_TIMEOUT = 5000; // 5 seconds
+
+// Digit cache for performance
+let digitCache = {
+    'hour-tens': null,
+    'hour-ones': null,
+    'minute-tens': null,
+    'minute-ones': null,
+    'second-tens': null,
+    'second-ones': null
 };
 
 function isImageIconValue(value) {
@@ -107,6 +143,7 @@ async function init() {
     setupEventListeners();
     setupSidebarResize();
     setupPreviewResize();
+    setupTimerResize();
     await restoreState();
     updateBackButton();
 }
@@ -1488,8 +1525,418 @@ function togglePdfSidebar() {
     }
 }
 
+// Controls fade-out functions
+function startInactivityTimer() {
+    clearTimeout(inactivityTimer);
+    showTimerControls();
+    inactivityTimer = setTimeout(hideTimerControls, INACTIVITY_TIMEOUT);
+}
+
+function hideTimerControls() {
+    if (timerControlsEl && timerState.isRunning && !timerState.isPaused) {
+        timerControlsEl.classList.add('hidden');
+    }
+}
+
+function showTimerControls() {
+    if (timerControlsEl) {
+        timerControlsEl.classList.remove('hidden');
+    }
+}
+
+// Timer functions
+function openTimerSidebar() {
+    clampTimerSidebarWidth();
+    timerSidebarEl.classList.add('open');
+    updateSidebarOverlay();
+    
+    // Try to restore timer state from localStorage
+    const restored = restoreTimerState();
+    if (!restored) {
+        loadTimerDuration();
+    }
+    
+    // Always update display
+    updateTimerDisplay();
+    
+    // If timer is running, restore button state and restart interval
+    if (timerState.isRunning) {
+        timerStartBtn.textContent = timerState.isPaused ? 'Resume' : 'Pause';
+        timerStartBtn.classList.toggle('paused', timerState.isPaused);
+        timerResetBtn.style.display = 'inline-block';
+        
+        // Restart interval if not paused
+        if (!timerState.isPaused) {
+            if (timerState.intervalId) clearInterval(timerState.intervalId);
+            timerState.intervalId = setInterval(updateTimer, 500);
+        }
+    } else {
+        timerResetBtn.style.display = 'none';
+    }
+    
+    startInactivityTimer();
+}
+
+function closeTimerSidebar() {
+    // Exit fullscreen first if in fullscreen mode
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(err => {
+            console.log(`Exit fullscreen error: ${err.message}`);
+        });
+    }
+    timerSidebarEl.classList.remove('open');
+    timerSidebarEl.classList.remove('fullscreen');
+    updateSidebarOverlay();
+}
+
+function toggleTimerSidebar() {
+    if (timerSidebarEl.classList.contains('open')) {
+        closeTimerSidebar();
+    } else {
+        openTimerSidebar();
+    }
+}
+
+function loadTimerDuration() {
+    const savedDuration = localStorage.getItem('timerDuration');
+    if (savedDuration) {
+        const duration = parseFloat(savedDuration);
+        if (duration >= 0.1 && duration <= 1440) {
+            timerDurationInput.value = duration;
+            timerState.totalSeconds = Math.round(duration * 60);
+            timerState.remainingSeconds = Math.round(duration * 60);
+        }
+    }
+}
+
+function saveTimerDuration() {
+    const duration = parseFloat(timerDurationInput.value);
+    if (duration >= 0.1 && duration <= 1440) {
+        localStorage.setItem('timerDuration', duration);
+    }
+}
+
+function saveTimerState() {
+    if (timerState.isRunning) {
+        const endTime = timerState.startTime + (timerState.totalSeconds * 1000);
+        localStorage.setItem('timerEndTime', endTime.toString());
+        localStorage.setItem('timerIsRunning', 'true');
+        localStorage.setItem('timerIsPaused', timerState.isPaused.toString());
+        localStorage.setItem('timerTotalSeconds', timerState.totalSeconds.toString());
+    } else {
+        localStorage.removeItem('timerEndTime');
+        localStorage.removeItem('timerIsRunning');
+        localStorage.removeItem('timerIsPaused');
+        localStorage.removeItem('timerTotalSeconds');
+    }
+}
+
+function restoreTimerState() {
+    const savedEndTime = localStorage.getItem('timerEndTime');
+    const isRunning = localStorage.getItem('timerIsRunning') === 'true';
+    const isPaused = localStorage.getItem('timerIsPaused') === 'true';
+    const totalSeconds = parseInt(localStorage.getItem('timerTotalSeconds') || '0');
+    
+    if (isRunning && savedEndTime) {
+        const endTime = parseInt(savedEndTime);
+        const remainingMs = endTime - Date.now();
+        
+        if (remainingMs > 0) {
+            timerState.isRunning = true;
+            timerState.isPaused = isPaused;
+            timerState.totalSeconds = totalSeconds;
+            timerState.remainingSeconds = Math.ceil(remainingMs / 1000);
+            timerState.startTime = Date.now() - (totalSeconds * 1000 - remainingMs);
+            return true;
+        }
+    }
+    return false;
+}
+
+function startTimer() {
+    if (timerState.isRunning && !timerState.isPaused) {
+        // Pause the timer
+        pauseTimer();
+        return;
+    }
+    
+    if (timerState.isPaused) {
+        // Resume from pause
+        timerState.isPaused = false;
+        timerState.startTime = Date.now() - (timerState.totalSeconds - timerState.remainingSeconds) * 1000;
+    } else {
+        // Start new timer
+        const duration = parseFloat(timerDurationInput.value);
+        if (duration >= 0.1 && duration <= 1440) {
+            timerState.totalSeconds = Math.round(duration * 60);
+            timerState.remainingSeconds = Math.round(duration * 60);
+            timerState.startTime = Date.now();
+            saveTimerDuration();
+        } else {
+            return;
+        }
+    }
+    
+    timerState.isRunning = true;
+    timerStartBtn.textContent = 'Pause';
+    timerStartBtn.classList.remove('paused');
+    timerResetBtn.style.display = 'inline-block';
+    startInactivityTimer();
+    saveTimerState();
+    
+    if (timerState.intervalId) clearInterval(timerState.intervalId);
+    timerState.intervalId = setInterval(updateTimer, 500);
+    updateTimer();
+}
+
+function pauseTimer() {
+    timerState.isPaused = true;
+    timerStartBtn.textContent = 'Resume';
+    timerStartBtn.classList.add('paused');
+    showTimerControls();
+    clearTimeout(inactivityTimer);
+    saveTimerState();
+    if (timerState.intervalId) {
+        clearInterval(timerState.intervalId);
+        timerState.intervalId = null;
+    }
+}
+
+function stopTimer() {
+    timerState.isRunning = false;
+    timerState.isPaused = false;
+    timerStartBtn.textContent = 'Start';
+    timerStartBtn.classList.remove('paused');
+    timerResetBtn.style.display = 'none';
+    showTimerControls();
+    clearTimeout(inactivityTimer);
+    saveTimerState();
+    
+    if (timerState.intervalId) {
+        clearInterval(timerState.intervalId);
+        timerState.intervalId = null;
+    }
+    
+    // Reset to saved duration
+    loadTimerDuration();
+    updateTimerDisplay();
+}
+
+function resetTimer() {
+    stopTimer();
+}
+
+function updateTimer() {
+    if (!timerState.isRunning || timerState.isPaused) return;
+    
+    const elapsed = (Date.now() - timerState.startTime) / 1000;
+    timerState.remainingSeconds = Math.max(0, timerState.totalSeconds - Math.floor(elapsed));
+    
+    updateTimerDisplay();
+    
+    if (timerState.remainingSeconds <= 0) {
+        timerComplete();
+    }
+}
+
+function timerComplete() {
+    stopTimer();
+    playSchoolBell();
+    timerStartBtn.textContent = 'Done!';
+    
+    // Flash the display
+    const flipDigits = document.querySelectorAll('.flip-digit');
+    flipDigits.forEach(digit => {
+        digit.style.color = '#fdcb6e';
+        setTimeout(() => {
+            digit.style.color = '#fff';
+        }, 500);
+    });
+}
+
+function playSchoolBell() {
+    try {
+        if (!timerState.audioContext) {
+            timerState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        
+        // Resume AudioContext if suspended (browser autoplay policy)
+        if (timerState.audioContext.state === 'suspended') {
+            timerState.audioContext.resume();
+        }
+        
+        const ctx = timerState.audioContext;
+        const now = ctx.currentTime;
+        
+        // School bell melody - ding dong sound
+        const notes = [
+            { freq: 880, start: 0, duration: 0.3 },    // A5
+            { freq: 659.25, start: 0.3, duration: 0.3 }, // E5
+            { freq: 880, start: 0.6, duration: 0.3 },    // A5
+            { freq: 659.25, start: 0.9, duration: 0.3 }, // E5
+            { freq: 880, start: 1.2, duration: 0.5 },    // A5 (longer)
+        ];
+        
+        notes.forEach(note => {
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            oscillator.frequency.value = note.freq;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, now + note.start);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + note.start + note.duration);
+            
+            oscillator.start(now + note.start);
+            oscillator.stop(now + note.start + note.duration);
+        });
+        
+    } catch (error) {
+        console.log('Could not play sound:', error);
+    }
+}
+
+function updateTimerDisplay() {
+    const total = timerState.remainingSeconds;
+    const flipClock = document.querySelector('.flip-clock');
+    
+    // Determine if we should show hours (when total >= 1 hour or during countdown from hours)
+    const showHours = timerState.totalSeconds >= 3600 || total >= 3600;
+    
+    // Toggle hours visibility
+    if (showHours) {
+        flipClock.classList.add('show-hours');
+    } else {
+        flipClock.classList.remove('show-hours');
+    }
+    
+    if (showHours) {
+        // HH:MM:SS format
+        const hours = Math.floor(total / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        const seconds = total % 60;
+        
+        const hourTens = Math.floor(hours / 10);
+        const hourOnes = hours % 10;
+        const minuteTens = Math.floor(minutes / 10);
+        const minuteOnes = minutes % 10;
+        const secondTens = Math.floor(seconds / 10);
+        const secondOnes = seconds % 10;
+        
+        updateDigit('hour-tens', hourTens);
+        updateDigit('hour-ones', hourOnes);
+        updateDigit('minute-tens', minuteTens);
+        updateDigit('minute-ones', minuteOnes);
+        updateDigit('second-tens', secondTens);
+        updateDigit('second-ones', secondOnes);
+    } else {
+        // MM:SS format
+        const minutes = Math.floor(total / 60);
+        const seconds = total % 60;
+        
+        const minuteTens = Math.floor(minutes / 10);
+        const minuteOnes = minutes % 10;
+        const secondTens = Math.floor(seconds / 10);
+        const secondOnes = seconds % 10;
+        
+        updateDigit('minute-tens', minuteTens);
+        updateDigit('minute-ones', minuteOnes);
+        updateDigit('second-tens', secondTens);
+        updateDigit('second-ones', secondOnes);
+    }
+}
+
+function updateDigit(digitId, value) {
+    // Skip if value unchanged (performance optimization)
+    if (digitCache[digitId] === value) return;
+    
+    const digitEl = document.querySelector(`[data-digit="${digitId}"]`);
+    if (!digitEl) return;
+    
+    const staticTop = digitEl.querySelector('.digit-static .digit-top span');
+    const staticBottom = digitEl.querySelector('.digit-static .digit-bottom span');
+    const flipCard = digitEl.querySelector('.flip-card');
+    const flipCardTop = digitEl.querySelector('.flip-card-top');
+    const flipCardBottom = digitEl.querySelector('.flip-card-bottom');
+    const flipCardTopSpan = digitEl.querySelector('.flip-card-top span');
+    const flipCardBottomSpan = digitEl.querySelector('.flip-card-bottom span');
+    
+    if (!staticTop || !staticBottom || !flipCard || !flipCardTop || !flipCardBottom || !flipCardTopSpan || !flipCardBottomSpan) return;
+    
+    const currentValue = digitCache[digitId];
+    const newValue = value.toString();
+    
+    // First time - just set the value without animation
+    if (currentValue === null) {
+        staticTop.textContent = newValue;
+        staticBottom.textContent = newValue;
+        digitCache[digitId] = value;
+        return;
+    }
+    
+    const currentValueStr = currentValue.toString();
+    
+    // Skip animation if digit hasn't changed or if already flipping
+    if (currentValueStr === newValue) return;
+    if (digitEl.classList.contains('flipping')) return;
+    
+    // Set up flip card with old and new values
+    flipCardTopSpan.textContent = currentValueStr;  // Old value (will flip away)
+    flipCardBottomSpan.textContent = newValue;     // New value (will flip in)
+    
+    // Show and trigger flip animation
+    flipCard.style.display = 'block';
+    digitEl.classList.add('flipping');
+    
+    // Update static layers when top flip completes (0.18s) - just before bottom flip starts
+    // This allows the new number to be revealed behind the bottom flap as it rotates down
+    setTimeout(() => {
+        staticTop.textContent = newValue;
+        staticBottom.textContent = newValue;
+    }, 180);
+    
+    // Use setTimeout for cleanup - animation is 0.36s total (0.18s + 0.18s delay)
+    setTimeout(() => {
+        // Hide flip card
+        flipCard.style.display = 'none';
+        
+        // Remove flipping class to reset animation
+        digitEl.classList.remove('flipping');
+        
+        // Force reflow to reset animation state
+        void digitEl.offsetWidth;
+        
+        // Update cache
+        digitCache[digitId] = value;
+    }, 360);
+}
+
+function toggleFullscreenTimer() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+            console.log(`Fullscreen error: ${err.message}`);
+        });
+        // Add fullscreen class for styling
+        timerSidebarEl.classList.add('fullscreen');
+    } else {
+        document.exitFullscreen().catch(err => {
+            console.log(`Exit fullscreen error: ${err.message}`);
+        });
+    }
+}
+
+// Handle fullscreen change events
+document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+        timerSidebarEl.classList.remove('fullscreen');
+    }
+});
+
 function openTimer() {
-    window.open(TIMER_URL, '_blank');
+    toggleTimerSidebar();
 }
 
 function openMotivation() {
@@ -1546,6 +1993,36 @@ function setupEventListeners() {
     fullscreenPreviewBtn.addEventListener('click', toggleFullscreenPreview);
     
     timerBtn.addEventListener('click', openTimer);
+    
+    // Timer sidebar events
+    closeTimerBtn.addEventListener('click', closeTimerSidebar);
+    timerStartBtn.addEventListener('click', startTimer);
+    timerResetBtn.addEventListener('click', resetTimer);
+    timerDurationInput.addEventListener('change', () => {
+        const duration = parseFloat(timerDurationInput.value);
+        if (duration >= 0.1 && duration <= 1440) {
+            if (!timerState.isRunning) {
+                timerState.totalSeconds = Math.round(duration * 60);
+                timerState.remainingSeconds = Math.round(duration * 60);
+                updateTimerDisplay();
+            }
+            saveTimerDuration();
+        }
+    });
+    timerFullscreenBtn.addEventListener('click', toggleFullscreenTimer);
+    
+    // Add timer sidebar to overlay click
+    sidebarOverlayEl.addEventListener('click', () => {
+        closePdfSidebar();
+        closePreview();
+        closeTimerSidebar();
+    });
+    
+    // Controls fade-out on inactivity
+    timerSidebarEl.addEventListener('pointermove', startInactivityTimer);
+    timerSidebarEl.addEventListener('click', startInactivityTimer);
+    timerSidebarEl.addEventListener('touchstart', startInactivityTimer);
+    
     savePlanBtn.addEventListener('click', savePlan);
     
     // Plan editor Ctrl+S shortcut and Tab navigation
@@ -1990,6 +2467,12 @@ function setupEventListeners() {
                 return;
             }
 
+            // If timer sidebar is open, close it
+            if (timerSidebarEl.classList.contains('open')) {
+                closeTimerSidebar();
+                return;
+            }
+
             // If in subject view, go back to subject list
             if (currentSubject) {
                 closeSubjectView();
@@ -2380,7 +2863,9 @@ function clampPreviewSidebarWidth() {
 }
 
 function updateSidebarOverlay() {
-    const hasOpenSidebar = pdfSidebarEl.classList.contains('open') || previewSidebarEl.classList.contains('open');
+    const hasOpenSidebar = pdfSidebarEl.classList.contains('open') 
+        || previewSidebarEl.classList.contains('open')
+        || timerSidebarEl.classList.contains('open');
     sidebarOverlayEl.classList.toggle('visible', hasOpenSidebar);
 }
 
@@ -2550,6 +3035,55 @@ function setupPreviewResize() {
     resizeHandlePreviewEl.addEventListener('pointerup', stopResizing);
     resizeHandlePreviewEl.addEventListener('pointercancel', stopResizing);
     window.addEventListener('resize', clampPreviewSidebarWidth);
+}
+
+function setupTimerResize() {
+    if (!resizeHandleTimerEl || !timerSidebarEl) return;
+    
+    let activePointerId = null;
+    let startX = 0;
+    let startWidth = 0;
+    
+    const onPointerDown = (event) => {
+        activePointerId = event.pointerId;
+        startX = event.clientX;
+        startWidth = timerSidebarEl.getBoundingClientRect().width;
+        resizeHandleTimerEl.setPointerCapture(activePointerId);
+        document.body.classList.add('is-resizing-sidebar');
+        event.preventDefault();
+    };
+    
+    const onPointerMove = (event) => {
+        if (event.pointerId !== activePointerId) return;
+        const deltaX = startX - event.clientX;
+        const { minWidth, maxWidth } = getSidebarBounds();
+        const nextWidth = Math.max(minWidth, Math.min(startWidth + deltaX, maxWidth));
+        timerSidebarEl.style.width = `${nextWidth}px`;
+        event.preventDefault();
+    };
+    
+    const stopResizing = (event) => {
+        if (event.pointerId !== activePointerId) return;
+        if (resizeHandleTimerEl.hasPointerCapture(activePointerId)) {
+            resizeHandleTimerEl.releasePointerCapture(activePointerId);
+        }
+        activePointerId = null;
+        document.body.classList.remove('is-resizing-sidebar');
+    };
+    
+    resizeHandleTimerEl.addEventListener('pointerdown', onPointerDown);
+    resizeHandleTimerEl.addEventListener('pointermove', onPointerMove);
+    resizeHandleTimerEl.addEventListener('pointerup', stopResizing);
+    resizeHandleTimerEl.addEventListener('pointercancel', stopResizing);
+    window.addEventListener('resize', clampTimerSidebarWidth);
+}
+
+function clampTimerSidebarWidth() {
+    if (!timerSidebarEl) return;
+    const { minWidth, maxWidth } = getSidebarBounds();
+    const currentWidth = timerSidebarEl.getBoundingClientRect().width || maxWidth;
+    const clamped = Math.max(minWidth, Math.min(currentWidth, maxWidth));
+    timerSidebarEl.style.width = `${clamped}px`;
 }
 
 function escapeHtml(value) {
