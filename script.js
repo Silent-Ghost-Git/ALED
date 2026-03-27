@@ -101,6 +101,7 @@ let timerState = {
 // Controls fade-out state
 let inactivityTimer = null;
 const INACTIVITY_TIMEOUT = 5000; // 5 seconds
+let lastActionWasKeyboard = false;
 
 // Digit cache for performance
 let digitCache = {
@@ -1533,7 +1534,7 @@ function startInactivityTimer() {
 }
 
 function hideTimerControls() {
-    if (timerControlsEl && timerState.isRunning && !timerState.isPaused) {
+    if (timerControlsEl && timerState.isRunning) {
         timerControlsEl.classList.add('hidden');
     }
 }
@@ -1681,7 +1682,10 @@ function startTimer() {
     timerStartBtn.textContent = 'Pause';
     timerStartBtn.classList.remove('paused');
     timerResetBtn.style.display = 'inline-block';
-    startInactivityTimer();
+    if (!lastActionWasKeyboard) {
+        startInactivityTimer();
+    }
+    lastActionWasKeyboard = false;
     saveTimerState();
     
     if (timerState.intervalId) clearInterval(timerState.intervalId);
@@ -1693,8 +1697,12 @@ function pauseTimer() {
     timerState.isPaused = true;
     timerStartBtn.textContent = 'Resume';
     timerStartBtn.classList.add('paused');
-    showTimerControls();
-    clearTimeout(inactivityTimer);
+    if (!lastActionWasKeyboard) {
+        showTimerControls();
+        clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(hideTimerControls, INACTIVITY_TIMEOUT);
+    }
+    lastActionWasKeyboard = false;
     saveTimerState();
     if (timerState.intervalId) {
         clearInterval(timerState.intervalId);
@@ -1707,6 +1715,7 @@ function stopTimer() {
     timerState.isPaused = false;
     timerStartBtn.textContent = 'Start';
     timerStartBtn.classList.remove('paused');
+    timerSidebarEl.classList.remove('paused');
     timerResetBtn.style.display = 'none';
     showTimerControls();
     clearTimeout(inactivityTimer);
@@ -1919,8 +1928,8 @@ function toggleFullscreenTimer() {
         document.documentElement.requestFullscreen().catch(err => {
             console.log(`Fullscreen error: ${err.message}`);
         });
-        // Add fullscreen class for styling
         timerSidebarEl.classList.add('fullscreen');
+        document.body.style.overflow = 'hidden';
     } else {
         document.exitFullscreen().catch(err => {
             console.log(`Exit fullscreen error: ${err.message}`);
@@ -1932,6 +1941,7 @@ function toggleFullscreenTimer() {
 document.addEventListener('fullscreenchange', () => {
     if (!document.fullscreenElement) {
         timerSidebarEl.classList.remove('fullscreen');
+        document.body.style.overflow = '';
     }
 });
 
@@ -2018,10 +2028,22 @@ function setupEventListeners() {
         closeTimerSidebar();
     });
     
-    // Controls fade-out on inactivity
-    timerSidebarEl.addEventListener('pointermove', startInactivityTimer);
-    timerSidebarEl.addEventListener('click', startInactivityTimer);
-    timerSidebarEl.addEventListener('touchstart', startInactivityTimer);
+    // Show controls when mouse is near them
+    document.addEventListener('mousemove', (e) => {
+        if (!timerSidebarEl.classList.contains('open')) return;
+        if (!timerControlsEl) return;
+        
+        const controlsRect = timerControlsEl.getBoundingClientRect();
+        const buffer = 80;
+        if (e.clientX >= controlsRect.left - buffer && 
+            e.clientX <= controlsRect.right + buffer &&
+            e.clientY >= controlsRect.top - buffer && 
+            e.clientY <= controlsRect.bottom + buffer) {
+            showTimerControls();
+            clearTimeout(inactivityTimer);
+            inactivityTimer = setTimeout(hideTimerControls, INACTIVITY_TIMEOUT);
+        }
+    });
     
     savePlanBtn.addEventListener('click', savePlan);
     
@@ -2441,6 +2463,17 @@ function setupEventListeners() {
     });
 
     document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' && timerSidebarEl.classList.contains('open')) {
+            e.preventDefault();
+            lastActionWasKeyboard = true;
+            if (timerState.isRunning && !timerState.isPaused) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+            return;
+        }
+
         if (e.key === 'Escape') {
             // If confirm dialog is open, close it
             if (confirmModalEl.classList.contains('visible')) {
