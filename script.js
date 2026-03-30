@@ -1,5 +1,5 @@
 /*
-    Pt4 Revision Dashboard - JavaScript
+  ALED - JavaScript
 */
 
 const DEFAULT_SUBJECTS = [
