@@ -1,6 +1,7 @@
 /*
   ALED - JavaScript
 */
+// don't forget the next project, about implenting fsr3 systemwide. please ignore.
 
 const DEFAULT_SUBJECTS = [
     { id: 'english', name: 'English', icon: '\uD83D\uDCD8' },
@@ -34,6 +35,7 @@ const planEditorEl = document.getElementById('planEditor');
 const backBtn = document.getElementById('backBtn');
 const togglePdfBtn = document.getElementById('togglePdfBtn');
 const timerBtn = document.getElementById('timerBtn');
+const motivationBtn = document.getElementById('motivationBtn');
 
 const savePlanBtn = document.getElementById('savePlanBtn');
 const closeSidebarBtn = document.getElementById('closeSidebar');
@@ -1950,7 +1952,89 @@ function openTimer() {
 }
 
 function openMotivation() {
-    window.open(MOTIVATION_URL, '_blank');
+    showRandomQuote();
+}
+
+function showRandomQuote() {
+    const quoteModal = document.getElementById('quoteModal');
+    const quoteText = document.getElementById('quoteText');
+    const newQuoteBtn = document.getElementById('newQuoteBtn');
+    const closeQuoteBtn = document.getElementById('closeQuoteBtn');
+    
+    if (!quoteModal || !quoteText) return;
+    
+    quoteText.textContent = getRandomQuote();
+    quoteModal.classList.add('visible');
+    
+    const closeQuote = () => {
+        quoteModal.classList.remove('visible');
+    };
+    
+    const handleKeydown = (e) => {
+        if (e.key === 'Escape') {
+            closeQuote();
+            document.removeEventListener('keydown', handleKeydown);
+            return;
+        }
+        
+        if (e.key === 'Enter') {
+            if (document.activeElement === newQuoteBtn) {
+                newQuoteBtn.click();
+            } else if (document.activeElement === closeQuoteBtn) {
+                closeQuote();
+                document.removeEventListener('keydown', handleKeydown);
+            }
+            return;
+        }
+        
+        if (e.key === 'Tab' || e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            
+            const buttons = [newQuoteBtn, closeQuoteBtn];
+            const currentIndex = document.activeElement === newQuoteBtn ? 0 : document.activeElement === closeQuoteBtn ? 1 : -1;
+            
+            if (e.key === 'Tab' || e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                if (e.shiftKey) {
+                    if (currentIndex > 0) {
+                        buttons[currentIndex - 1].focus();
+                    }
+                } else {
+                    if (currentIndex < buttons.length - 1) {
+                        buttons[currentIndex + 1].focus();
+                    }
+                }
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                if (currentIndex > 0) {
+                    buttons[currentIndex - 1].focus();
+                }
+            }
+            return;
+        }
+    };
+    
+    document.addEventListener('keydown', handleKeydown);
+    
+    newQuoteBtn.onclick = () => {
+        const dialog = quoteModal.querySelector('.confirm-dialog');
+        dialog.style.animation = 'none';
+        dialog.offsetHeight; 
+        dialog.style.animation = '';
+        
+        quoteText.style.animation = 'none';
+        quoteText.offsetHeight; 
+        quoteText.style.animation = '';
+        quoteText.textContent = getRandomQuote();
+    };
+    
+    closeQuoteBtn.onclick = closeQuote;
+    quoteModal.onclick = (e) => {
+        if (e.target === quoteModal) {
+            closeQuote();
+            document.removeEventListener('keydown', handleKeydown);
+        }
+    };
+    
+    newQuoteBtn.focus();
 }
 
 function setupEventListeners() {
@@ -2003,6 +2087,7 @@ function setupEventListeners() {
     fullscreenPreviewBtn.addEventListener('click', toggleFullscreenPreview);
     
     timerBtn.addEventListener('click', openTimer);
+    motivationBtn.addEventListener('click', openMotivation);
     
     // Timer sidebar events
     closeTimerBtn.addEventListener('click', closeTimerSidebar);
@@ -2463,6 +2548,17 @@ function setupEventListeners() {
     });
 
     document.addEventListener('keydown', (e) => {
+        // If quote modal is open, handle it exclusively
+        const quoteModal = document.getElementById('quoteModal');
+        if (quoteModal && quoteModal.classList.contains('visible')) {
+            if (e.key === 'Escape' || e.key === 'Tab' || e.key.startsWith('Arrow')) {
+                e.stopPropagation();
+                e.preventDefault();
+                return;
+            }
+            return;
+        }
+        
         if (e.code === 'Space' && timerSidebarEl.classList.contains('open')) {
             e.preventDefault();
             lastActionWasKeyboard = true;

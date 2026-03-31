@@ -228,12 +228,18 @@
                     <input type="text" id="newSubjectIcon" class="todo-input" placeholder="Icon (emoji or code)">
                     <button type="button" id="uploadIconBtn" class="small-btn" title="Upload Icon Image">Upload</button>
                     <div id="iconPreview" class="icon-preview"></div>
-                    <input type="file" id="iconFileInput" accept="image/*,.svg" style="display: none;">
                 </div>
-            </div>
-            <div class="confirm-actions">
-                <button type="button" id="cancelAddSubject" class="save-btn">Cancel</button>
                 <button type="button" id="confirmAddSubject" class="save-btn">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="quoteModal" class="confirm-modal">
+        <div class="confirm-dialog quote-dialog">
+            <p id="quoteText" class="quote-text"></p>
+            <div class="quote-actions">
+                <button id="newQuoteBtn" class="save-btn">New Quote</button>
+                <button id="closeQuoteBtn" class="save-btn">Close</button>
             </div>
         </div>
     </div>
@@ -242,6 +248,7 @@
         ALED
     </footer>
 
+    <script src="data/quotes.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
