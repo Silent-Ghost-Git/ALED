@@ -34,6 +34,7 @@ ALLOWED_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
 ALLOWED_ICON_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'}
 ALLOWED_WORKSHEET_EXTENSIONS = {'.pdf', '.docx', '.doc', '.png', '.jpg', '.jpeg', '.gif', '.webp'}
 ALLOWED_PORTION_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg', '.mp4', '.webm', '.ogg', '.mov', '.avi', '.mp3', '.wav', '.ogg', '.flac', '.m4a', '.doc', '.docx'}
+ALLOWED_ALL_EXTENSIONS = ALLOWED_PORTION_EXTENSIONS | {'.md', '.txt', '.svg'}
 
 
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
@@ -68,7 +69,12 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         if path == '/api/portions':
             self.handle_get_portions()
             return
-
+        
+        if path == '/api/learning-materials':
+            subject = query.get('subject', [''])[0]
+            self.handle_learning_materials(subject)
+            return
+        
         super().do_GET()
 
     def do_POST(self):
@@ -151,7 +157,21 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 return
             self.handle_delete_portion(data)
             return
-
+        
+        if path == '/api/learning-materials/upload':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_upload_learning_material(data)
+            return
+        
+        if path == '/api/learning-materials/delete':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_delete_learning_material(data)
+            return
+        
         self.send_error(404, 'Not Found')
 
     def do_DELETE(self):
@@ -182,6 +202,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             os.makedirs(subject_dir, exist_ok=True)
             os.makedirs(self.get_portion_dir(subject), exist_ok=True)
             os.makedirs(self.get_worksheets_dir(subject), exist_ok=True)
+            os.makedirs(self.get_learning_materials_dir(subject), exist_ok=True)
             plan_path = self.get_plan_path(subject)
             if plan_path:
                 os.makedirs(os.path.dirname(plan_path), exist_ok=True)
@@ -878,6 +899,140 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         os.makedirs(os.path.dirname(order_path), exist_ok=True)
         with open(order_path, 'w', encoding='utf-8') as file:
             json.dump(order, file, ensure_ascii=False, indent=2)
+
+    def get_learning_materials_dir(self, subject):
+        data_dir = self.get_subject_data_dir(subject)
+        if not data_dir:
+            return None
+        return os.path.join(data_dir, 'learning_materials')
+
+    def handle_learning_materials(self, subject):
+        folder_path = self.get_learning_materials_dir(subject)
+        if not folder_path:
+            self.send_json([])
+            return
+
+        if not os.path.isdir(folder_path):
+            self.send_json([])
+            return
+
+        materials = []
+        for filename in os.listdir(folder_path):
+            path = os.path.join(folder_path, filename)
+            if os.path.isfile(path):
+                folder_name = self.get_subject_folder(subject)
+                name = filename
+                url = f'data/{folder_name}/learning_materials/{filename}'
+                file_type = self.get_mime_type(filename)
+                is_link = False
+                
+                # Check if it's a link file (JSON)
+                if filename.endswith('.json'):
+                    try:
+                        with open(path, 'r', encoding='utf-8') as f:
+                            link_data = json.load(f)
+                            if link_data.get('isLink'):
+                                url = link_data.get('url', '')
+                                name = filename[:-5]  # Remove .json extension
+                                file_type = 'Link'
+                                is_link = True
+                    except:
+                        pass
+                
+                materials.append({
+                    'name': name,
+                    'url': url,
+                    'type': file_type,
+                    'isLink': is_link
+                })
+
+        self.send_json(materials)
+
+    def handle_upload_learning_material(self, data):
+        subject = data.get('subject')
+        filename = data.get('filename')
+        url = data.get('url')
+        is_link = data.get('isLink', False)
+        mime_type = data.get('mime_type', '')
+        file_base64 = data.get('file_base64')
+
+        if not subject or not filename:
+            self.send_json({'error': 'Missing required fields'}, 400)
+            return
+
+        materials_dir = self.get_learning_materials_dir(subject)
+        if not materials_dir:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        os.makedirs(materials_dir, exist_ok=True)
+
+        if is_link and url:
+            # Save link as a JSON file
+            link_data = {'url': url, 'isLink': True}
+            import json
+            final_name = f"{filename}.json"
+            final_path = os.path.join(materials_dir, final_name)
+            with open(final_path, 'w', encoding='utf-8') as f:
+                json.dump(link_data, f)
+            self.send_json({'success': True, 'name': filename, 'url': url, 'isLink': True})
+            return
+
+        if not file_base64:
+            self.send_json({'error': 'Missing file data'}, 400)
+            return
+
+        import base64
+        file_data = base64.b64decode(file_base64)
+
+        ext = os.path.splitext(filename)[1].lower()
+        final_name = self.unique_filename(materials_dir, filename, ALLOWED_ALL_EXTENSIONS)
+        final_path = os.path.join(materials_dir, final_name)
+
+        with open(final_path, 'wb') as file:
+            file.write(file_data)
+
+        self.send_json({'success': True, 'name': final_name, 'url': f'data/{self.get_subject_folder(subject)}/learning_materials/{final_name}'})
+
+    def handle_delete_learning_material(self, data):
+        subject = data.get('subject')
+        filename = data.get('filename')
+
+        if not subject or not filename:
+            self.send_json({'error': 'Missing required fields'}, 400)
+            return
+
+        materials_dir = self.get_learning_materials_dir(subject)
+        if not materials_dir:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        # Try direct file first
+        file_path = os.path.join(materials_dir, filename)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+            self.send_json({'success': True})
+            return
+        
+        # Try .json extension for links
+        json_path = os.path.join(materials_dir, filename + '.json')
+        if os.path.isfile(json_path):
+            os.remove(json_path)
+            self.send_json({'success': True})
+            return
+        
+        self.send_json({'error': 'File not found'}, 404)
+
+    def get_mime_type(self, filename):
+        ext = os.path.splitext(filename)[1].lower()
+        type_map = {
+            '.mp4': 'MP4', '.webm': 'WEBM', '.mov': 'MOV',
+            '.mp3': 'MP3', '.wav': 'WAV',
+            '.pdf': 'PDF',
+            '.png': 'PNG', '.jpg': 'JPG', '.jpeg': 'JPEG', '.gif': 'GIF',
+            '.md': 'MD', '.txt': 'TXT'
+        }
+        return type_map.get(ext, ext[1:].upper() if ext else 'FILE')
 
     def send_json(self, data, status=200):
         response = json.dumps(data).encode('utf-8')

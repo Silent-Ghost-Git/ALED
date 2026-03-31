@@ -69,6 +69,17 @@
                 </div>
             </div>
 
+            <div class="section-container" tabindex="0" id="learningMaterialSection">
+                <div class="section-title-bar">
+                    <h3 class="subsection-title">Learning Material</h3>
+                    <div class="portion-actions">
+                        <button id="addLearningMaterialBtn" class="small-btn">+ Add files or links</button>
+                    </div>
+                </div>
+                <div id="learningMaterialList" class="learning-material-list"></div>
+                <input id="learningMaterialFileInput" type="file" accept="video/*,audio/*,application/pdf,.md,.txt,image/*" multiple hidden>
+            </div>
+
             <div class="section-container" tabindex="0" id="todoSection">
                 <div class="section-title-bar">
                     <h3 class="subsection-title">To-Do</h3>
@@ -227,9 +238,13 @@
                 <div class="icon-input-container">
                     <input type="text" id="newSubjectIcon" class="todo-input" placeholder="Icon (emoji or code)">
                     <button type="button" id="uploadIconBtn" class="small-btn" title="Upload Icon Image">Upload</button>
+                    <input type="file" id="iconFileInput" accept="image/*" hidden>
                     <div id="iconPreview" class="icon-preview"></div>
                 </div>
-                <button type="button" id="confirmAddSubject" class="save-btn">Add</button>
+                <div class="confirm-actions">
+                    <button type="button" id="cancelAddSubject" class="save-btn">Cancel</button>
+                    <button type="button" id="confirmAddSubject" class="save-btn">Add</button>
+                </div>
             </div>
         </div>
     </div>
@@ -240,6 +255,26 @@
             <div class="quote-actions">
                 <button id="newQuoteBtn" class="save-btn">New Quote</button>
                 <button id="closeQuoteBtn" class="save-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="learningMaterialModal" class="confirm-modal">
+        <div class="confirm-dialog">
+            <p>Add Learning Material</p>
+            <div class="learning-material-form">
+                <label>Link or file:</label>
+                <div class="link-or-file-row">
+                    <button type="button" id="addLearningMaterialFileBtn" class="small-btn">+ Add files</button>
+                    <input type="text" id="learningMaterialUrl" class="todo-input" placeholder="Or enter URL">
+                    <input type="file" id="learningMaterialFileInputModal" accept="video/*,audio/*,application/pdf,.md,.txt,image/*" multiple hidden>
+                </div>
+                <label>Name:</label>
+                <input type="text" id="learningMaterialName" class="todo-input" placeholder="Enter name">
+                <div class="confirm-actions">
+                    <button id="cancelLearningMaterial" class="save-btn">Cancel</button>
+                    <button id="addLearningMaterialConfirm" class="save-btn">Add</button>
+                </div>
             </div>
         </div>
     </div>

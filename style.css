@@ -709,6 +709,12 @@ body {
     gap: var(--spacing-xs);
 }
 
+.learning-material-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
 .worksheet-item {
     display: flex;
     align-items: center;
@@ -914,12 +920,60 @@ body {
     border-color: #bd2130;
 }
 
+#cancelLearningMaterial {
+    background: #dc3545;
+    border-color: #dc3545;
+}
+
+#cancelLearningMaterial:hover {
+    background: #c82333;
+    border-color: #bd2130;
+}
+
 .confirm-dialog p {
     margin-bottom: 28px;
     color: #ffffff;
     font-size: 1.15rem;
     font-weight: 500;
     line-height: 1.5;
+}
+
+.learning-material-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    text-align: left;
+    min-width: 300px;
+}
+
+.learning-material-form .link-or-file-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.learning-material-form .link-or-file-row .small-btn {
+    flex-shrink: 0;
+    height: 42px;
+    padding: 6px 14px;
+}
+
+.learning-material-form .link-or-file-row .todo-input {
+    flex: 1;
+    min-width: 0;
+    height: 42px;
+    padding: 6px 14px;
+}
+
+.learning-material-form label {
+    color: #aaa;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.learning-material-form .todo-input {
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .confirm-actions {

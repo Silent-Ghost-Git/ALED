@@ -32,6 +32,9 @@ const uploadWorksheetBtn = document.getElementById('uploadWorksheetBtn');
 const worksheetFileInput = document.getElementById('worksheetFileInput');
 const worksheetStatusEl = document.getElementById('worksheetStatus');
 const planEditorEl = document.getElementById('planEditor');
+const learningMaterialListEl = document.getElementById('learningMaterialList');
+const addLearningMaterialBtn = document.getElementById('addLearningMaterialBtn');
+const learningMaterialFileInput = document.getElementById('learningMaterialFileInput');
 const backBtn = document.getElementById('backBtn');
 const togglePdfBtn = document.getElementById('togglePdfBtn');
 const timerBtn = document.getElementById('timerBtn');
@@ -76,6 +79,7 @@ const confirmOkBtn = document.getElementById('confirmOk');
 let currentSubject = null;
 let currentPortionImages = [];
 let currentWorksheets = [];
+let currentLearningMaterials = [];
 let currentGlobalPortions = [];
 let currentTodos = [];
 let nextSequenceIndex = 0;
@@ -85,6 +89,7 @@ let subjects = loadSubjectsFromStorage();
 let currentIndices = {
     portion: 0,
     worksheet: 0,
+    learningMaterial: 0,
     plan: 0,
     todo: 0
 };
@@ -722,6 +727,7 @@ async function openSubject(subject) {
         loadPortionImages(subject.id),
         loadWorksheets(subject.id),
         loadPlan(subject.id),
+        loadLearningMaterials(subject.id),
         loadTodos(subject.id)
     ]);
 
@@ -1065,6 +1071,254 @@ async function savePlan() {
     } catch (error) {
         console.error('Error saving plan:', error);
         showSaveStatus('Could not save plan.', 'error');
+    }
+}
+
+async function loadLearningMaterials(subjectId) {
+    if (!learningMaterialListEl) return;
+    
+    learningMaterialListEl.innerHTML = '<p class="no-data">Loading...</p>';
+    
+    try {
+        const response = await fetch(`/api/learning-materials?subject=${encodeURIComponent(subjectId)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        currentLearningMaterials = await response.json();
+        renderLearningMaterials();
+    } catch (error) {
+        console.error('Error loading learning materials:', error);
+        learningMaterialListEl.innerHTML = '<p class="no-data">Error loading materials.</p>';
+    }
+}
+
+function renderLearningMaterials() {
+    if (!learningMaterialListEl) return;
+    
+    if (!currentLearningMaterials.length) {
+        learningMaterialListEl.innerHTML = '<p class="no-data">No learning materials yet. Click "+ Add" to upload.</p>';
+        return;
+    }
+    
+    learningMaterialListEl.innerHTML = currentLearningMaterials
+        .map((item) => {
+            const isLink = item.isLink || (item.url && item.url.startsWith('http'));
+            const icon = isLink ? '🔗' : getLearningMaterialIcon(item.type);
+            const type = isLink ? 'Link' : (item.type || 'File');
+            const fileAttr = isLink ? '' : `data-file="${escapeHtml(item.url)}"`;
+            
+            return `
+                <div class="worksheet-item" ${fileAttr} data-name="${escapeHtml(item.name)}">
+                    <span class="worksheet-icon">${icon}</span>
+                    <span class="worksheet-name">${escapeHtml(item.name)}</span>
+                    <span class="worksheet-type">${escapeHtml(type)}</span>
+                    <button class="preview-btn" data-file="${escapeHtml(item.url)}" data-name="${escapeHtml(item.name)}" title="Open">📂</button>
+                    <button class="worksheet-delete-btn" data-file="${escapeHtml(item.url)}" data-name="${escapeHtml(item.name)}" title="Delete">×</button>
+                </div>
+            `;
+        })
+        .join('');
+    
+    learningMaterialListEl.querySelectorAll('.worksheet-item').forEach((el) => {
+        const file = el.getAttribute('data-file');
+        const name = el.getAttribute('data-name');
+        
+        el.setAttribute('tabindex', '0');
+        
+        el.addEventListener('click', (e) => {
+            if (e.target.classList.contains('preview-btn') || e.target.classList.contains('worksheet-delete-btn')) return;
+            if (file) openPreview(file, name);
+        });
+        
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (file) {
+                    if (file.startsWith('http')) {
+                        window.open(file, '_blank');
+                    } else {
+                        openPreview(file, name);
+                    }
+                }
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                e.preventDefault();
+                promptDeleteLearningMaterial(name, file);
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                const next = el.nextElementSibling;
+                if (next) next.focus();
+            } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const prev = el.previousElementSibling;
+                if (prev) prev.focus();
+            }
+        });
+    });
+    
+    learningMaterialListEl.querySelectorAll('.preview-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const file = btn.getAttribute('data-file');
+            const name = btn.getAttribute('data-name');
+            if (!file) return;
+            // If it's a URL (link), open in new tab
+            if (file.startsWith('http')) {
+                window.open(file, '_blank');
+            } else {
+                openPreview(file, name);
+            }
+        });
+    });
+    
+    learningMaterialListEl.querySelectorAll('.worksheet-delete-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const file = btn.getAttribute('data-file');
+            const name = btn.getAttribute('data-name');
+            promptDeleteLearningMaterial(name, file);
+        });
+    });
+}
+
+function getLearningMaterialIcon(type) {
+    if (!type) return '📄';
+    const lowerType = type.toLowerCase();
+    if (lowerType.includes('video') || lowerType.includes('mp4') || lowerType.includes('mov')) return '🎬';
+    if (lowerType.includes('audio') || lowerType.includes('mp3')) return '🎵';
+    if (lowerType.includes('pdf')) return '📕';
+    if (lowerType.includes('image') || lowerType.includes('png') || lowerType.includes('jpg')) return '🖼️';
+    if (lowerType.includes('text') || lowerType.includes('md') || lowerType.includes('txt')) return '📝';
+    return '📄';
+}
+
+async function uploadLearningMaterialFiles(fileList) {
+    if (!currentSubject) return;
+    
+    const files = Array.from(fileList);
+    if (!files.length) return;
+    
+    for (const file of files) {
+        try {
+            const base64 = await fileToBase64(file);
+            const response = await fetch('/api/learning-materials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    subject: currentSubject.id,
+                    filename: file.name,
+                    mime_type: file.type,
+                    file_base64: base64
+                })
+            });
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        } catch (error) {
+            console.error('Error uploading learning material:', error);
+        }
+    }
+    
+    await loadLearningMaterials(currentSubject.id);
+}
+
+async function uploadLearningMaterialFile(file, customName) {
+    if (!currentSubject || !file) {
+        console.error('No currentSubject or file:', currentSubject, file);
+        return;
+    }
+    
+    try {
+        const base64 = await fileToBase64(file);
+        const filename = customName || file.name;
+        console.log('Uploading:', { subject: currentSubject.id, filename, type: file.type });
+        
+        const response = await fetch('/api/learning-materials/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subject: currentSubject.id,
+                filename: filename,
+                mime_type: file.type,
+                file_base64: base64
+            })
+        });
+        
+        const result = await response.json();
+        console.log('Upload result:', result);
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        await loadLearningMaterials(currentSubject.id);
+    } catch (error) {
+        console.error('Error uploading learning material:', error);
+    }
+}
+
+async function addLearningMaterialLink(url, name) {
+    if (!currentSubject) return;
+    
+    try {
+        const response = await fetch('/api/learning-materials/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subject: currentSubject.id,
+                filename: name,
+                url: url,
+                isLink: true
+            })
+        });
+        
+        if (response.ok) {
+            await loadLearningMaterials(currentSubject.id);
+        }
+    } catch (error) {
+        console.error('Error adding learning material link:', error);
+    }
+}
+
+async function deleteLearningMaterial(index) {
+    if (!currentSubject || index < 0 || index >= currentLearningMaterials.length) return;
+    
+    const item = currentLearningMaterials[index];
+    
+    try {
+        const response = await fetch('/api/learning-materials/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject: currentSubject.id, filename: item.name })
+        });
+        
+        if (response.ok) {
+            await loadLearningMaterials(currentSubject.id);
+        }
+    } catch (error) {
+        console.error('Error deleting learning material:', error);
+    }
+}
+
+function promptDeleteLearningMaterial(name, file) {
+    confirmMessageEl.textContent = `Delete "${name}"?`;
+    confirmOkBtn.textContent = 'Delete';
+    confirmModalEl.classList.add('visible');
+    pendingDeleteCallback = () => {
+        deleteLearningMaterialByName(name);
+    };
+    setTimeout(() => confirmCancelBtn.focus(), 10);
+}
+
+async function deleteLearningMaterialByName(name) {
+    if (!currentSubject || !name) return;
+    
+    try {
+        const response = await fetch('/api/learning-materials/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject: currentSubject.id, filename: name })
+        });
+        
+        if (response.ok) {
+            await loadLearningMaterials(currentSubject.id);
+        }
+    } catch (error) {
+        console.error('Error deleting learning material:', error);
     }
 }
 
@@ -2062,6 +2316,145 @@ function setupEventListeners() {
         await uploadWorksheetFiles(files);
         worksheetFileInput.value = '';
     });
+    
+    addLearningMaterialBtn.addEventListener('click', () => {
+        if (!currentSubject) return;
+        openLearningMaterialModal();
+    });
+    
+    learningMaterialModal = document.getElementById('learningMaterialModal');
+    learningMaterialUrlInput = document.getElementById('learningMaterialUrl');
+    learningMaterialFileInputModal = document.getElementById('learningMaterialFileInputModal');
+    learningMaterialNameInput = document.getElementById('learningMaterialName');
+    cancelLearningMaterialBtn = document.getElementById('cancelLearningMaterial');
+    addLearningMaterialConfirmBtn = document.getElementById('addLearningMaterialConfirm');
+    addLearningMaterialFileBtn = document.getElementById('addLearningMaterialFileBtn');
+    selectedLearningMaterialFile = null;
+    
+    function openLearningMaterialModal() {
+        learningMaterialUrlInput.value = '';
+        learningMaterialFileInputModal.value = '';
+        learningMaterialNameInput.value = '';
+        selectedLearningMaterialFile = null;
+        updateUrlInputStyle();
+        learningMaterialModal.classList.add('visible');
+        addLearningMaterialFileBtn.focus();
+    }
+    
+    function updateUrlInputStyle() {
+        const url = learningMaterialUrlInput.value.trim();
+        if (isValidUrl(url)) {
+            learningMaterialUrlInput.style.color = '#4da6ff';
+            learningMaterialUrlInput.style.cursor = 'pointer';
+        } else {
+            learningMaterialUrlInput.style.color = '';
+            learningMaterialUrlInput.style.cursor = '';
+        }
+    }
+    
+    function isValidUrl(string) {
+        try {
+            new URL(string);
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+    
+    learningMaterialUrlInput.addEventListener('input', updateUrlInputStyle);
+    
+    learningMaterialUrlInput.addEventListener('click', () => {
+        const url = learningMaterialUrlInput.value.trim();
+        if (isValidUrl(url)) {
+            window.open(url, '_blank');
+        }
+    });
+    
+    function closeLearningMaterialModal() {
+        learningMaterialModal.classList.remove('visible');
+        selectedLearningMaterialFile = null;
+    }
+    
+    addLearningMaterialFileBtn.addEventListener('click', () => {
+        learningMaterialFileInputModal.click();
+    });
+    
+    learningMaterialFileInputModal.addEventListener('change', (e) => {
+        const files = e.target.files;
+        if (files.length > 0) {
+            selectedLearningMaterialFile = files[0];
+            const file = selectedLearningMaterialFile;
+            const icon = getLearningMaterialIcon(file.type);
+            learningMaterialUrlInput.value = icon + ' ' + file.name;
+            if (!learningMaterialNameInput.value) {
+                learningMaterialNameInput.value = file.name;
+            }
+        }
+    });
+    
+    cancelLearningMaterialBtn.addEventListener('click', closeLearningMaterialModal);
+    
+    learningMaterialModal.addEventListener('click', (e) => {
+        if (e.target === learningMaterialModal) closeLearningMaterialModal();
+    });
+    
+    // Keyboard navigation for modal
+    const learningMaterialModalInputs = [addLearningMaterialFileBtn, learningMaterialUrlInput, learningMaterialNameInput, cancelLearningMaterialBtn, addLearningMaterialConfirmBtn];
+    
+    learningMaterialModal.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeLearningMaterialModal();
+            return;
+        }
+        
+        if (e.key === 'Enter') {
+            const activeEl = document.activeElement;
+            if (activeEl === addLearningMaterialConfirmBtn || activeEl === learningMaterialNameInput) {
+                addLearningMaterialConfirmBtn.click();
+            }
+            return;
+        }
+        
+        if (e.key === 'Tab' || e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const currentIndex = learningMaterialModalInputs.indexOf(document.activeElement);
+            if (currentIndex === -1) {
+                addLearningMaterialFileBtn.focus();
+            } else {
+                const nextIndex = e.shiftKey ? Math.max(0, currentIndex - 1) : Math.min(learningMaterialModalInputs.length - 1, currentIndex + 1);
+                learningMaterialModalInputs[nextIndex].focus();
+            }
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            const currentIndex = learningMaterialModalInputs.indexOf(document.activeElement);
+            if (currentIndex > 0) {
+                learningMaterialModalInputs[currentIndex - 1].focus();
+            }
+        }
+    });
+    
+    addLearningMaterialConfirmBtn.addEventListener('click', function() {
+        const url = learningMaterialUrlInput.value.trim();
+        const name = learningMaterialNameInput.value.trim();
+        
+        if (!name) {
+            learningMaterialNameInput.focus();
+            return;
+        }
+        
+        if (selectedLearningMaterialFile) {
+            uploadLearningMaterialFile(selectedLearningMaterialFile, name);
+        } else if (url) {
+            addLearningMaterialLink(url, name);
+        }
+        
+        closeLearningMaterialModal();
+    });
+    learningMaterialFileInput.addEventListener('change', async (event) => {
+        const files = event.target.files;
+        await uploadLearningMaterialFiles(files);
+        learningMaterialFileInput.value = '';
+    });
     togglePdfBtn.addEventListener('click', togglePdfSidebar);
     closeSidebarBtn.addEventListener('click', closePdfSidebar);
     if (uploadGlobalPortionBtn && globalPortionFileInput) {
@@ -2145,6 +2538,7 @@ function setupEventListeners() {
                 { sectionId: 'portionSection', contentId: 'portionContent', type: 'portion' },
                 { sectionId: 'worksheetSection', contentId: 'worksheetsList', type: 'worksheet' },
                 { sectionId: 'planSection', contentId: 'planEditor', type: 'plan' },
+                { sectionId: 'learningMaterialSection', contentId: 'learningMaterialList', type: 'learningMaterial' },
                 { sectionId: 'todoSection', contentId: 'todoList', type: 'todo' }
             ];
             const currentBlockIndex = 2; // plan is at index 2
@@ -2426,9 +2820,10 @@ function setupEventListeners() {
                         { sectionId: 'portionSection', contentId: 'portionContent', type: 'portion' },
                         { sectionId: 'worksheetSection', contentId: 'worksheetsList', type: 'worksheet' },
                         { sectionId: 'planSection', contentId: 'planEditor', type: 'plan' },
+                        { sectionId: 'learningMaterialSection', contentId: 'learningMaterialList', type: 'learningMaterial' },
                         { sectionId: 'todoSection', contentId: 'todoList', type: 'todo' }
                     ];
-                    const currentBlockIndex = 3; // todo is at index 3
+                    const currentBlockIndex = 4; // todo is at index 4
                     const direction = e.shiftKey ? -1 : 1;
                     let nextIndex = currentBlockIndex + direction;
                     
@@ -2666,6 +3061,7 @@ function handleSubjectViewNavigation(e) {
         { sectionId: 'portionSection', contentId: 'portionContent', type: 'portion' },
         { sectionId: 'worksheetSection', contentId: 'worksheetsList', type: 'worksheet' },
         { sectionId: 'planSection', contentId: 'planEditor', type: 'plan' },
+        { sectionId: 'learningMaterialSection', contentId: 'learningMaterialList', type: 'learningMaterial' },
         { sectionId: 'todoSection', contentId: 'todoList', type: 'todo' }
     ];
 
@@ -2910,6 +3306,8 @@ function highlightBlock(blockType) {
         sectionId = 'portionSection';
     } else if (blockType === 'worksheet') {
         sectionId = 'worksheetSection';
+    } else if (blockType === 'learningMaterial') {
+        sectionId = 'learningMaterialSection';
     } else if (blockType === 'plan') {
         sectionId = 'planSection';
     } else if (blockType === 'todo') {
@@ -2928,7 +3326,7 @@ function highlightCurrentItem(blockType) {
         el.classList.remove('keyboard-focused');
     });
     
-    const contentId = blockType === 'portion' ? 'portionContent' : 'worksheetsList';
+    const contentId = blockType === 'portion' ? 'portionContent' : blockType === 'worksheet' ? 'worksheetsList' : blockType === 'learningMaterial' ? 'learningMaterialList' : blockType === 'plan' ? 'planEditor' : 'todoList';
     const contentEl = document.getElementById(contentId);
     if (!contentEl) return;
     
