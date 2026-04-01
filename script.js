@@ -2417,17 +2417,24 @@ function setupEventListeners() {
         
         if (e.key === 'Tab' || e.key === 'ArrowRight' || e.key === 'ArrowDown') {
             e.preventDefault();
+            e.stopPropagation();
             const currentIndex = learningMaterialModalInputs.indexOf(document.activeElement);
+            let nextIndex;
             if (currentIndex === -1) {
-                addLearningMaterialFileBtn.focus();
+                nextIndex = 0;
+            } else if (e.shiftKey) {
+                nextIndex = currentIndex === 0 ? learningMaterialModalInputs.length - 1 : currentIndex - 1;
             } else {
-                const nextIndex = e.shiftKey ? Math.max(0, currentIndex - 1) : Math.min(learningMaterialModalInputs.length - 1, currentIndex + 1);
-                learningMaterialModalInputs[nextIndex].focus();
+                nextIndex = currentIndex === learningMaterialModalInputs.length - 1 ? 0 : currentIndex + 1;
             }
+            learningMaterialModalInputs[nextIndex].focus();
         } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
             e.preventDefault();
+            e.stopPropagation();
             const currentIndex = learningMaterialModalInputs.indexOf(document.activeElement);
-            if (currentIndex > 0) {
+            if (currentIndex <= 0) {
+                learningMaterialModalInputs[learningMaterialModalInputs.length - 1].focus();
+            } else {
                 learningMaterialModalInputs[currentIndex - 1].focus();
             }
         }
