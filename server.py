@@ -13,6 +13,7 @@ import binascii
 import http.server
 import json
 import os
+import re
 import socketserver
 import urllib.parse
 from datetime import datetime
@@ -21,14 +22,32 @@ from pathlib import Path
 PORT = 8000
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 
-SUBJECT_FOLDER_MAP = {
-    'english': 'English',
-    'hindi': 'Hindi',
-    'kannada': 'Kannada',
-    'maths': 'Maths',
-    'science': 'Science',
-    'sst': 'SST'
-}
+def get_data_dir():
+    return os.path.join(DIRECTORY, 'data')
+
+def get_exam_folder():
+    data_dir = get_data_dir()
+    if not os.path.isdir(data_dir):
+        return None
+    for entry in os.listdir(data_dir):
+        entry_path = os.path.join(data_dir, entry)
+        if os.path.isdir(entry_path):
+            has_subfolders = any(os.path.isdir(os.path.join(entry_path, sub)) for sub in os.listdir(entry_path) if os.path.isdir(os.path.join(entry_path, sub)))
+            if has_subfolders:
+                return entry
+    return None
+
+EXAM_FOLDER = get_exam_folder()
+
+def get_subject_base_dir():
+    if EXAM_FOLDER:
+        return os.path.join(get_data_dir(), EXAM_FOLDER)
+    return get_data_dir()
+
+def get_subject_url_path():
+    if EXAM_FOLDER:
+        return f'data/{urllib.parse.quote(EXAM_FOLDER)}'
+    return 'data'
 
 ALLOWED_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
 ALLOWED_ICON_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'}
@@ -200,9 +219,15 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
         try:
             os.makedirs(subject_dir, exist_ok=True)
-            os.makedirs(self.get_portion_dir(subject), exist_ok=True)
-            os.makedirs(self.get_worksheets_dir(subject), exist_ok=True)
-            os.makedirs(self.get_learning_materials_dir(subject), exist_ok=True)
+            portion_dir = self.get_portion_dir(subject)
+            worksheets_dir = self.get_worksheets_dir(subject)
+            lm_dir = self.get_learning_materials_dir(subject)
+            if portion_dir:
+                os.makedirs(portion_dir, exist_ok=True)
+            if worksheets_dir:
+                os.makedirs(worksheets_dir, exist_ok=True)
+            if lm_dir:
+                os.makedirs(lm_dir, exist_ok=True)
             plan_path = self.get_plan_path(subject)
             if plan_path:
                 os.makedirs(os.path.dirname(plan_path), exist_ok=True)
@@ -254,13 +279,6 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def get_subject_folder(self, subject):
         if not isinstance(subject, str):
             return None
-        # First try the map
-        folder = SUBJECT_FOLDER_MAP.get(subject.lower())
-        if folder:
-            return folder
-        # If not in map, use the subject name directly (capitalized)
-        # Sanitize the subject name to be a valid folder name
-        import re
         sanitized = re.sub(r'[<>:"/\\|?*]', '_', subject)
         return sanitized.title().replace(' ', '')
 
@@ -268,7 +286,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         folder_name = self.get_subject_folder(subject)
         if not folder_name:
             return None
-        return os.path.join(DIRECTORY, 'data', folder_name)
+        return os.path.join(get_subject_base_dir(), folder_name)
 
     def get_portion_dir(self, subject):
         data_dir = self.get_subject_data_dir(subject)
@@ -289,7 +307,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         return os.path.join(data_dir, 'plan', 'plan.txt')
 
     def get_global_portions_dir(self):
-        return os.path.join(DIRECTORY, 'data', 'portions')
+        return os.path.join(get_subject_base_dir(), 'portions')
 
     def get_portions_order_path(self):
         return os.path.join(self.get_global_portions_dir(), 'order.json')
@@ -404,8 +422,10 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.write_order(subject, final_names)
 
         result = []
+        base_path = get_subject_url_path()
         for name in final_names:
-            url = '/data/{}/portion/{}'.format(
+            url = '/{}/{}/portion/{}'.format(
+                base_path,
                 urllib.parse.quote(folder_name),
                 urllib.parse.quote(name)
             )
@@ -429,7 +449,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                     if ext in ALLOWED_WORKSHEET_EXTENSIONS:
                         files.append({
                             'name': filename,
-                            'file': f'data/{folder_name}/worksheets/{filename}',
+                            'file': '{}/{}/worksheets/{}'.format(get_subject_url_path(), folder_name, filename),
                             'type': ext[1:]
                         })
 
@@ -476,7 +496,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         folder_name = self.get_subject_folder(subject)
         if not folder_name:
             return None
-        data_dir = Path(DIRECTORY) / 'data' / folder_name
+        data_dir = Path(get_subject_base_dir()) / folder_name
         todos_path = data_dir / 'todos.json'
         return str(todos_path)
 
@@ -638,7 +658,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         with open(final_path, 'wb') as file:
             file.write(icon_bytes)
 
-        url = '/data/{}/{}'.format(urllib.parse.quote(folder_name), urllib.parse.quote(final_name))
+        url = '/{}/{}/{}'.format(get_subject_url_path(), urllib.parse.quote(folder_name), urllib.parse.quote(final_name))
         self.send_json({'success': True, 'name': final_name, 'url': url})
 
     def handle_reorder_portion_images(self, data):
@@ -772,7 +792,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
         result = []
         for name in final_names:
-            url = '/data/portions/{}'.format(urllib.parse.quote(name))
+            url = '/{}/portions/{}'.format(get_subject_url_path(), urllib.parse.quote(name))
             ext = os.path.splitext(name)[1][1:]
             result.append({'name': name, 'url': url, 'type': ext})
         
@@ -922,7 +942,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             if os.path.isfile(path):
                 folder_name = self.get_subject_folder(subject)
                 name = filename
-                url = f'data/{folder_name}/learning_materials/{filename}'
+                url = '{}/{}/learning_materials/{}'.format(get_subject_url_path(), folder_name, filename)
                 file_type = self.get_mime_type(filename)
                 is_link = False
                 
@@ -992,7 +1012,7 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         with open(final_path, 'wb') as file:
             file.write(file_data)
 
-        self.send_json({'success': True, 'name': final_name, 'url': f'data/{self.get_subject_folder(subject)}/learning_materials/{final_name}'})
+        self.send_json({'success': True, 'name': final_name, 'url': '{}/{}/learning_materials/{}'.format(get_subject_url_path(), self.get_subject_folder(subject), final_name)})
 
     def handle_delete_learning_material(self, data):
         subject = data.get('subject')
