@@ -15,10 +15,7 @@
             <button id="closeSidebar" class="close-sidebar-btn" aria-label="Close">&times;</button>
         </div>
         <div class="sidebar-content">
-            <div class="exam-empty-state">
-                <p class="no-data">No exams yet.</p>
-                <p class="exam-empty-help">Click "Add Exams" below, choose a template, and create your first exam.</p>
-            </div>
+            <p class="no-data">No exams yet.</p>
         </div>
         <div class="sidebar-footer">
             <button id="addExamBtn" class="add-exam-btn">Add Exams</button>
@@ -47,10 +44,14 @@
 
     <main class="main-content">
         <section id="subjectPanel">
-            <h2 class="section-title">
+            <h2 id="subjectPanelTitle" class="section-title">
                 Select Subject
                 <button id="addSubjectBtn" class="add-subject-btn" title="Add new subject" aria-label="Add new subject">+</button>
             </h2>
+            <div id="noExamState" class="no-exam-state" style="display: none;">
+                <p class="no-exam-message">No exam selected.</p>
+                <p class="no-exam-help">Open the Exams sidebar and click "Add Exams" to create one.</p>
+            </div>
             <div id="subjectList" class="subject-list"></div>
         </section>
 

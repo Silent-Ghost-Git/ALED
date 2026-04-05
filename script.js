@@ -17,6 +17,8 @@ const MOTIVATION_URL = 'https://chatgpt.com/share/69a710ee-5b14-8000-8f33-b76dae
 const subjectListEl = document.getElementById('subjectList');
 const subjectViewEl = document.getElementById('subjectView');
 const subjectPanelEl = document.getElementById('subjectPanel');
+const subjectPanelTitleEl = document.getElementById('subjectPanelTitle');
+const noExamStateEl = document.getElementById('noExamState');
 const currentSubjectTitleEl = document.getElementById('currentSubjectTitle');
 const portionContentEl = document.getElementById('portionContent');
 const uploadPortionBtn = document.getElementById('uploadPortionBtn');
@@ -90,6 +92,7 @@ let nextSequenceIndex = 0;
 let pendingDeleteCallback = null;
 let selectedSubjectId = null;
 let subjects = [];
+let hasCurrentExam = false;
 let currentIndices = {
     portion: 0,
     worksheet: 0,
@@ -150,6 +153,7 @@ function buildSubjectIconMarkup(icon, subjectName, className = 'subject-icon') {
 async function init() {
     console.log('init called');
     subjects = await loadSubjectsFromServer();
+    await loadCurrentExamState();
     if (!selectedSubjectId && subjects.length) {
         selectedSubjectId = subjects[0].id;
     }
@@ -193,8 +197,37 @@ async function restoreState() {
     }
 }
 
+async function loadCurrentExamState() {
+    try {
+        const response = await fetch('/api/exam/current');
+        const data = await response.json();
+        hasCurrentExam = Boolean(data.currentExam);
+    } catch (err) {
+        console.error('Error loading current exam:', err);
+        hasCurrentExam = false;
+    }
+
+    updateSubjectPanelState();
+}
+
+function updateSubjectPanelState() {
+    if (!subjectPanelTitleEl || !subjectListEl || !noExamStateEl) return;
+
+    if (hasCurrentExam) {
+        subjectPanelTitleEl.style.display = '';
+        subjectListEl.style.display = '';
+        noExamStateEl.style.display = 'none';
+        return;
+    }
+
+    subjectPanelTitleEl.style.display = 'none';
+    subjectListEl.style.display = 'none';
+    noExamStateEl.style.display = 'flex';
+}
+
 function renderSubjectList() {
     subjectListEl.innerHTML = '';
+    updateSubjectPanelState();
 
     subjects.forEach((subject, index) => {
         const item = document.createElement('div');
@@ -2588,12 +2621,7 @@ function setupEventListeners() {
 
         sidebarContent.innerHTML = '';
         if (!exams.length) {
-            sidebarContent.innerHTML = `
-                <div class="exam-empty-state">
-                    <p class="no-data">No exams yet.</p>
-                    <p class="exam-empty-help">Click "Add Exams" below, choose a template, and create your first exam.</p>
-                </div>
-            `;
+            sidebarContent.innerHTML = '<p class="no-data">No exams yet.</p>';
             return;
         }
 
@@ -2722,6 +2750,8 @@ function setupEventListeners() {
             const data = await response.json();
             exams = Array.isArray(data.exams) ? data.exams : [];
             currentExam = data.currentExam || null;
+            hasCurrentExam = Boolean(currentExam);
+            updateSubjectPanelState();
             renderExamsList();
         } catch (err) {
             console.error('Error loading exams:', err);
