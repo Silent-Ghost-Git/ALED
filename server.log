@@ -1,0 +1,77 @@
+127.0.0.1 - - [31/Mar/2026 21:37:32] "GET /api/learning-materials?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:38:34] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:38:34] "GET /style.css HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:38:34] "GET /data/quotes.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:38:34] "GET /script.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:38:34] "GET /api/portion-images?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:38:35] "GET /api/worksheets?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:38:35] "GET /api/plan?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:38:35] "GET /api/learning-materials?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:38:35] "GET /api/todos?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:38:35] code 404, message File not found
+127.0.0.1 - - [31/Mar/2026 21:38:35] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [31/Mar/2026 21:43:55] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:43:56] "GET /style.css HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:43:56] "GET /data/quotes.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:43:56] "GET /script.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:43:56] "GET /api/portion-images?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:43:56] "GET /api/worksheets?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:43:56] "GET /api/plan?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:43:56] "GET /api/learning-materials?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:43:56] "GET /api/todos?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:43:56] code 404, message File not found
+127.0.0.1 - - [31/Mar/2026 21:43:56] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [31/Mar/2026 21:44:21] "POST /api/learning-materials/upload HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:44:22] "GET /api/learning-materials?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:27] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:28] "GET /style.css HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:28] "GET /data/quotes.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:28] "GET /script.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:28] "GET /api/portion-images?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:28] "GET /api/worksheets?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:28] "GET /api/plan?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:28] "GET /api/learning-materials?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:28] "GET /api/todos?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:28] code 404, message File not found
+127.0.0.1 - - [31/Mar/2026 21:51:28] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [31/Mar/2026 21:51:37] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:37] "GET /style.css HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /style.css HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /data/quotes.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /script.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /style.css HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /style.css HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /data/quotes.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /script.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /api/portion-images?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /style.css HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /data/quotes.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /script.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /api/portion-images?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:38] "GET /api/worksheets?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:39] "GET /api/plan?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:39] "GET /api/learning-materials?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:39] "GET /api/todos?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:39] code 404, message File not found
+127.0.0.1 - - [31/Mar/2026 21:51:39] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [31/Mar/2026 21:51:41] code 404, message File not found
+127.0.0.1 - - [31/Mar/2026 21:51:41] "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 -
+127.0.0.1 - - [31/Mar/2026 21:51:52] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:52] "GET /style.css HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:52] "GET /data/quotes.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:52] "GET /script.js HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:52] code 404, message File not found
+127.0.0.1 - - [31/Mar/2026 21:51:52] "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 -
+127.0.0.1 - - [31/Mar/2026 21:51:52] "GET /api/portion-images?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:52] "GET /api/worksheets?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:52] "GET /api/plan?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:52] "GET /api/learning-materials?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:52] "GET /api/todos?subject=science HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:52] code 404, message File not found
+127.0.0.1 - - [31/Mar/2026 21:51:52] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [31/Mar/2026 21:51:52] "GET /data/Science/portion/image.png HTTP/1.1" 200 -
+127.0.0.1 - - [31/Mar/2026 21:51:53] "GET /data/Science/portion/image_1.png HTTP/1.1" 200 -
