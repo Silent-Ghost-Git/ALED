@@ -25,16 +25,48 @@ DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 def get_data_dir():
     return os.path.join(DIRECTORY, 'data')
 
+def get_data_file():
+    return os.path.join(DIRECTORY, 'aled_data.json')
+
+def load_data():
+    try:
+        with open(get_data_file(), 'r') as f:
+            return json.load(f)
+    except:
+        return {'currentExam': None, 'subjects': [], 'order': [], 'currentSubject': None, 'examOrder': []}
+
+def save_data(data):
+    try:
+        with open(get_data_file(), 'w') as f:
+            json.dump(data, f)
+    except:
+        pass
+
+def load_saved_exam():
+    data = load_data()
+    return data.get('currentExam')
+
+def save_current_exam(exam_name):
+    data = load_data()
+    data['currentExam'] = exam_name
+    save_data(data)
+
 def get_exam_folder():
+    saved = load_saved_exam()
     data_dir = get_data_dir()
+    if saved and os.path.isdir(os.path.join(data_dir, saved)):
+        return saved
     if not os.path.isdir(data_dir):
         return None
-    for entry in os.listdir(data_dir):
+    for entry in sorted(os.listdir(data_dir)):
         entry_path = os.path.join(data_dir, entry)
         if os.path.isdir(entry_path):
-            has_subfolders = any(os.path.isdir(os.path.join(entry_path, sub)) for sub in os.listdir(entry_path) if os.path.isdir(os.path.join(entry_path, sub)))
-            if has_subfolders:
-                return entry
+            try:
+                has_subfolders = any(os.path.isdir(os.path.join(entry_path, sub)) for sub in os.listdir(entry_path) if os.path.isdir(os.path.join(entry_path, sub)))
+                if has_subfolders:
+                    return entry
+            except OSError:
+                continue
     return None
 
 EXAM_FOLDER = get_exam_folder()
@@ -65,6 +97,18 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         path = parsed_path.path
         query = urllib.parse.parse_qs(parsed_path.query)
 
+        if path == '/api/subjects':
+            self.handle_get_subjects()
+            return
+
+        if path == '/api/subjects-data':
+            self.handle_get_subjects_data()
+            return
+
+        if path == '/api/state':
+            self.handle_get_state()
+            return
+
         if path == '/api/worksheets':
             subject = query.get('subject', [''])[0]
             self.handle_worksheets(subject)
@@ -94,6 +138,14 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_learning_materials(subject)
             return
         
+        if path == '/api/exams':
+            self.handle_get_exams()
+            return
+        
+        if path == '/api/exam/current':
+            self.handle_get_current_exam()
+            return
+        
         super().do_GET()
 
     def do_POST(self):
@@ -105,6 +157,24 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             if data is None:
                 return
             self.handle_create_subject(data)
+            return
+
+        if path == '/api/subjects-data':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_save_subjects_data(data)
+            return
+
+        if path == '/api/state':
+            self.handle_get_state()
+            return
+
+        if path == '/api/state/save':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_save_state(data)
             return
 
         if path == '/api/subject-icon/upload':
@@ -140,6 +210,13 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             if data is None:
                 return
             self.handle_reorder_portion_images(data)
+            return
+
+        if path == '/api/portion-images/delete':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_delete_portion_image(data)
             return
 
         if path == '/api/worksheets/upload':
@@ -191,6 +268,34 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_delete_learning_material(data)
             return
         
+        if path == '/api/exams':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_create_exam(data)
+            return
+
+        if path == '/api/exams/reorder':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_reorder_exams(data)
+            return
+        
+        if path == '/api/exam/rename':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_rename_exam(data)
+            return
+        
+        if path == '/api/exam/set-current':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_set_current_exam(data)
+            return
+        
         self.send_error(404, 'Not Found')
 
     def do_DELETE(self):
@@ -202,6 +307,13 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             if data is None:
                 return
             self.handle_delete_subject(data)
+            return
+
+        if path == '/api/exam':
+            data = self.read_json_body()
+            if data is None:
+                return
+            self.handle_delete_exam(data)
             return
 
         self.send_error(404, 'Not Found')
@@ -266,6 +378,379 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({'success': True, 'message': 'Deleted subject folder'})
         else:
             self.send_json({'success': True, 'message': 'Folder already deleted or does not exist'})
+
+    def read_exams_config(self):
+        default_config = {'order': [], 'currentExam': None}
+        data = load_data()
+
+        order = data.get('examOrder')
+        if not isinstance(order, list):
+            order = []
+
+        normalized_order = []
+        seen = set()
+        for exam_name in order:
+            if not isinstance(exam_name, str):
+                continue
+            if exam_name in seen:
+                continue
+            normalized_order.append(exam_name)
+            seen.add(exam_name)
+
+        current_exam = data.get('currentExam')
+        if current_exam is not None and not isinstance(current_exam, str):
+            current_exam = None
+
+        if normalized_order:
+            return {'order': normalized_order, 'currentExam': current_exam}
+
+        legacy_config_path = os.path.join(get_data_dir(), 'exams.json')
+        if not os.path.isfile(legacy_config_path):
+            return {'order': normalized_order, 'currentExam': current_exam}
+
+        try:
+            with open(legacy_config_path, 'r', encoding='utf-8') as f:
+                loaded = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {'order': normalized_order, 'currentExam': current_exam}
+
+        if not isinstance(loaded, dict):
+            return {'order': normalized_order, 'currentExam': current_exam}
+
+        legacy_order = loaded.get('order')
+        if not isinstance(legacy_order, list):
+            legacy_exams = loaded.get('exams', [])
+            legacy_order = legacy_exams if isinstance(legacy_exams, list) else []
+
+        migrated_order = []
+        seen = set()
+        for exam_name in legacy_order:
+            if not isinstance(exam_name, str):
+                continue
+            if exam_name in seen:
+                continue
+            migrated_order.append(exam_name)
+            seen.add(exam_name)
+
+        if migrated_order:
+            self.write_exams_config({
+                'order': migrated_order,
+                'currentExam': current_exam if current_exam is not None else loaded.get('currentExam')
+            })
+            return {
+                'order': migrated_order,
+                'currentExam': current_exam if current_exam is not None else loaded.get('currentExam')
+            }
+
+        return default_config
+
+    def write_exams_config(self, config):
+        order = config.get('order', [])
+        normalized_order = []
+        seen = set()
+        if isinstance(order, list):
+            for exam_name in order:
+                if not isinstance(exam_name, str):
+                    continue
+                if exam_name in seen:
+                    continue
+                normalized_order.append(exam_name)
+                seen.add(exam_name)
+
+        current_exam = config.get('currentExam')
+        if current_exam is not None and not isinstance(current_exam, str):
+            current_exam = None
+
+        data = load_data()
+        data['examOrder'] = normalized_order
+        if current_exam is not None:
+            data['currentExam'] = current_exam
+        save_data(data)
+
+    def get_all_exams(self):
+        data_dir = get_data_dir()
+        if not os.path.isdir(data_dir):
+            return []
+        exams = []
+        for entry in sorted(os.listdir(data_dir), key=str.lower):
+            entry_path = os.path.join(data_dir, entry)
+            if os.path.isdir(entry_path):
+                has_subfolders = any(os.path.isdir(os.path.join(entry_path, sub)) for sub in os.listdir(entry_path) if os.path.isdir(os.path.join(entry_path, sub)))
+                if has_subfolders:
+                    exams.append(entry)
+        return exams
+
+    def get_ordered_exams(self):
+        all_exams = self.get_all_exams()
+        config = self.read_exams_config()
+        saved_order = config.get('order', [])
+
+        ordered = []
+        seen = set()
+        available = set(all_exams)
+        for exam_name in saved_order:
+            if exam_name not in available or exam_name in seen:
+                continue
+            ordered.append(exam_name)
+            seen.add(exam_name)
+
+        for exam_name in all_exams:
+            if exam_name not in seen:
+                ordered.append(exam_name)
+                seen.add(exam_name)
+
+        current_exam = config.get('currentExam')
+        if current_exam is not None and current_exam not in available:
+            current_exam = None
+
+        if ordered != saved_order or current_exam != config.get('currentExam'):
+            config['order'] = ordered
+            config['currentExam'] = current_exam
+            self.write_exams_config(config)
+
+        return ordered
+
+    def handle_get_exams(self):
+        all_exams = self.get_ordered_exams()
+        exams_data = []
+        for exam in all_exams:
+            subjects = []
+            exam_path = os.path.join(get_data_dir(), exam)
+            if os.path.isdir(exam_path):
+                for sub in os.listdir(exam_path):
+                    sub_path = os.path.join(exam_path, sub)
+                    if os.path.isdir(sub_path) and sub not in ['portions', 'quotes.js']:
+                        subjects.append(sub)
+            exams_data.append({'name': exam, 'subjects': subjects})
+        self.send_json({'exams': exams_data, 'currentExam': EXAM_FOLDER})
+
+    def handle_get_current_exam(self):
+        self.send_json({'currentExam': EXAM_FOLDER})
+
+    def handle_get_subjects(self):
+        subjects = []
+        exam_path = get_subject_base_dir()
+        base_url_path = get_subject_url_path()
+        if os.path.isdir(exam_path):
+            for sub in os.listdir(exam_path):
+                sub_path = os.path.join(exam_path, sub)
+                if os.path.isdir(sub_path) and sub not in ['portions', 'quotes.js']:
+                    icon_url = None
+                    for ext in ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg']:
+                        potential_icon = os.path.join(sub_path, f'icon{ext}')
+                        if os.path.isfile(potential_icon):
+                            icon_url = f'/{base_url_path}/{urllib.parse.quote(sub)}/icon{ext}'
+                            break
+                    subjects.append({'id': sub, 'name': sub, 'icon': icon_url})
+        self.send_json(subjects)
+
+    def handle_get_subjects_data(self):
+        data = load_data()
+        self.send_json({'subjects': data.get('subjects', []), 'order': data.get('order', [])})
+
+    def handle_save_subjects_data(self, incoming):
+        data = load_data()
+        data['subjects'] = incoming.get('subjects', [])
+        data['order'] = incoming.get('order', [])
+        save_data(data)
+        self.send_json({'success': True})
+
+    def handle_get_state(self):
+        data = load_data()
+        self.send_json({'currentSubject': data.get('currentSubject')})
+
+    def handle_save_state(self, incoming):
+        data = load_data()
+        data['currentSubject'] = incoming.get('currentSubject')
+        save_data(data)
+        self.send_json({'success': True})
+
+    TEMPLATE_SUBJECTS = {
+        'cbse10': ['English', 'Maths', 'Science', 'Hindi', 'Kannada', 'SST'],
+        'cbse11': ['Physics', 'Chemistry', 'Maths', 'Biology', 'ComputerScience'],
+        'sat': ['Math', 'English'],
+        'custom': []
+    }
+
+    def handle_create_exam(self, data):
+        exam_name = data.get('name', '').strip()
+        template = data.get('template', 'custom')
+        if not exam_name:
+            self.send_json({'error': 'Exam name required'}, 400)
+            return
+        
+        import re
+        sanitized = re.sub(r'[<>:"/\\|?*]', '_', exam_name)
+        exam_folder = sanitized
+        
+        exam_path = os.path.join(get_data_dir(), exam_folder)
+        if os.path.exists(exam_path):
+            self.send_json({'error': 'Exam already exists'}, 400)
+            return
+        
+        try:
+            os.makedirs(exam_path, exist_ok=True)
+            
+            subjects = self.TEMPLATE_SUBJECTS.get(template, [])
+            for subject in subjects:
+                subject_path = os.path.join(exam_path, subject)
+                os.makedirs(os.path.join(subject_path, 'portion'), exist_ok=True)
+                os.makedirs(os.path.join(subject_path, 'plan'), exist_ok=True)
+                os.makedirs(os.path.join(subject_path, 'worksheets'), exist_ok=True)
+                os.makedirs(os.path.join(subject_path, 'learning_materials'), exist_ok=True)
+            
+            global EXAM_FOLDER
+            EXAM_FOLDER = exam_folder
+            save_current_exam(exam_folder)
+
+            config = self.read_exams_config()
+            order = [name for name in config.get('order', []) if name != exam_folder]
+            order.append(exam_folder)
+            config['order'] = order
+            config['currentExam'] = exam_folder
+            self.write_exams_config(config)
+            
+            self.send_json({'success': True, 'exam': exam_folder, 'subjects': subjects})
+        except Exception as e:
+            self.send_json({'error': f'Failed to create exam: {str(e)}'}, 500)
+
+    def handle_rename_exam(self, data):
+        old_name = data.get('oldName', '').strip()
+        new_name = data.get('newName', '').strip()
+        if not old_name or not new_name:
+            self.send_json({'error': 'Old and new name required'}, 400)
+            return
+        
+        import re
+        sanitized = re.sub(r'[<>:"/\\|?*]', '_', new_name)
+        new_folder = sanitized
+        
+        old_path = os.path.join(get_data_dir(), old_name)
+        new_path = os.path.join(get_data_dir(), new_folder)
+        
+        if not os.path.exists(old_path):
+            self.send_json({'error': 'Exam not found'}, 404)
+            return
+        if os.path.exists(new_path):
+            self.send_json({'error': 'Exam name already exists'}, 400)
+            return
+        
+        try:
+            os.rename(old_path, new_path)
+            
+            global EXAM_FOLDER
+            if EXAM_FOLDER == old_name:
+                EXAM_FOLDER = new_folder
+                save_current_exam(new_folder)
+
+            config = self.read_exams_config()
+            updated_order = []
+            for exam_name in config.get('order', []):
+                updated_order.append(new_folder if exam_name == old_name else exam_name)
+            if new_folder not in updated_order:
+                updated_order.append(new_folder)
+            config['order'] = updated_order
+
+            if config.get('currentExam') == old_name:
+                config['currentExam'] = new_folder
+
+            self.write_exams_config(config)
+            
+            self.send_json({'success': True, 'newName': new_folder})
+        except Exception as e:
+            self.send_json({'error': f'Failed to rename exam: {str(e)}'}, 500)
+
+    def handle_set_current_exam(self, data):
+        exam_name = data.get('exam', '').strip()
+        if not exam_name:
+            self.send_json({'error': 'Exam name required'}, 400)
+            return
+        
+        exam_path = os.path.join(get_data_dir(), exam_name)
+        if not os.path.exists(exam_path):
+            self.send_json({'error': 'Exam not found'}, 404)
+            return
+        
+        global EXAM_FOLDER
+        EXAM_FOLDER = exam_name
+        save_current_exam(exam_name)
+
+        config = self.read_exams_config()
+        order = [name for name in config.get('order', []) if name != exam_name]
+        order.append(exam_name)
+        config['order'] = order
+        config['currentExam'] = exam_name
+        self.write_exams_config(config)
+        
+        self.send_json({'success': True, 'currentExam': exam_name})
+
+    def handle_reorder_exams(self, data):
+        order = data.get('order', [])
+        if not isinstance(order, list):
+            self.send_json({'error': 'order must be a list'}, 400)
+            return
+
+        all_exams = self.get_all_exams()
+        available = set(all_exams)
+        normalized = []
+        seen = set()
+        for item in order:
+            if not isinstance(item, str):
+                continue
+            if item not in available or item in seen:
+                continue
+            normalized.append(item)
+            seen.add(item)
+
+        for exam_name in all_exams:
+            if exam_name not in seen:
+                normalized.append(exam_name)
+
+        config = self.read_exams_config()
+        config['order'] = normalized
+        self.write_exams_config(config)
+
+        self.send_json({'success': True, 'order': normalized})
+
+    def handle_delete_exam(self, data):
+        exam_name = data.get('exam', '').strip()
+        if not exam_name:
+            self.send_json({'error': 'Exam name required'}, 400)
+            return
+        
+        exam_path = os.path.join(get_data_dir(), exam_name)
+        if not os.path.exists(exam_path):
+            self.send_json({'error': 'Exam not found'}, 404)
+            return
+        
+        try:
+            import shutil
+            shutil.rmtree(exam_path)
+
+            config = self.read_exams_config()
+            order = [name for name in config.get('order', []) if name != exam_name]
+
+            remaining_exams = self.get_all_exams()
+            available = set(remaining_exams)
+            order = [name for name in order if name in available]
+            for name in remaining_exams:
+                if name not in order:
+                    order.append(name)
+
+            global EXAM_FOLDER
+            if EXAM_FOLDER == exam_name:
+                EXAM_FOLDER = order[0] if order else None
+            elif EXAM_FOLDER not in available:
+                EXAM_FOLDER = order[0] if order else None
+
+            save_current_exam(EXAM_FOLDER)
+            config['order'] = order
+            config['currentExam'] = EXAM_FOLDER
+            self.write_exams_config(config)
+            
+            self.send_json({'success': True})
+        except Exception as e:
+            self.send_json({'error': f'Failed to delete exam: {str(e)}'}, 500)
 
     def read_json_body(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -688,6 +1173,36 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
 
         self.write_order(subject, normalized)
         self.send_json({'success': True})
+
+    def handle_delete_portion_image(self, data):
+        subject = data.get('subject', '')
+        folder_name = self.get_subject_folder(subject)
+        if not folder_name:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        filename = self.sanitize_filename(data.get('filename', ''))
+        if not filename:
+            self.send_json({'error': 'filename is required'}, 400)
+            return
+
+        portion_dir = self.get_portion_dir(subject)
+        if not portion_dir:
+            self.send_json({'error': 'Invalid subject'}, 400)
+            return
+
+        file_path = os.path.join(portion_dir, filename)
+        if not os.path.isfile(file_path):
+            self.send_json({'error': 'File not found'}, 404)
+            return
+
+        try:
+            os.remove(file_path)
+            current_order = [name for name in self.read_order(subject) if name != filename]
+            self.write_order(subject, current_order)
+            self.send_json({'success': True})
+        except OSError as e:
+            self.send_json({'error': f'Delete failed: {str(e)}'}, 500)
 
     def handle_upload_worksheet(self, data):
         subject = data.get('subject', '')

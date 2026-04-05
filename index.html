@@ -8,9 +8,31 @@
 </head>
 <body>
 
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h2 class="sidebar-title">Exams</h2>
+            <button id="closeSidebar" class="close-sidebar-btn" aria-label="Close">&times;</button>
+        </div>
+        <div class="sidebar-content">
+            <p class="no-data">No exams available</p>
+        </div>
+        <div class="sidebar-footer">
+            <button id="addExamBtn" class="add-exam-btn">Add Exams</button>
+        </div>
+    </aside>
+    <div class="sidebar-resize-handle" id="examsResizeHandle"></div>
+
     <header class="header">
         <div class="header-left">
             <button id="backBtn" class="back-btn-header" style="display: none;">&larr;</button>
+            <div class="hamburger-wrapper">
+                <button id="hamburgerMenu" class="hamburger-btn" aria-label="Menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
             <h1 class="header-title">ALED</h1>
         </div>
         <div class="header-buttons">
@@ -107,7 +129,7 @@
             <h3>Portions</h3>
             <div class="sidebar-header-actions">
                 <button id="uploadGlobalPortionBtn" class="small-btn" title="Upload files">+</button>
-                <button id="closeSidebar" class="close-sidebar-btn">&times;</button>
+                <button id="closePdfSidebarBtn" class="close-sidebar-btn">&times;</button>
             </div>
         </div>
         <span id="globalPortionStatus" class="portion-status"></span>
@@ -218,14 +240,23 @@
         </div>
     </aside>
 
-    <div id="sidebarOverlay" class="sidebar-overlay"></div>
-
     <div id="confirmModal" class="confirm-modal">
         <div class="confirm-dialog">
             <p id="confirmMessage">Are you sure?</p>
             <div class="confirm-actions">
                 <button id="confirmCancel" class="save-btn">Cancel</button>
                 <button id="confirmOk" class="save-btn danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="renameModal" class="confirm-modal">
+        <div class="confirm-dialog">
+            <p id="renameTitle">Rename</p>
+            <input type="text" id="renameInput" class="todo-input" placeholder="Enter new name...">
+            <div class="confirm-actions">
+                <button id="renameCancel" class="save-btn danger">Cancel</button>
+                <button id="renameOk" class="save-btn">Save</button>
             </div>
         </div>
     </div>
@@ -245,6 +276,50 @@
                     <button type="button" id="cancelAddSubject" class="save-btn">Cancel</button>
                     <button type="button" id="confirmAddSubject" class="save-btn">Add</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="addExamModal" class="confirm-modal">
+        <div class="confirm-dialog">
+            <p>Add New Exam</p>
+            <div class="add-exam-form">
+                <input type="text" id="newExamName" class="todo-input" placeholder="Name...">
+                <div class="confirm-actions">
+                    <button type="button" id="cancelAddExam" class="save-btn danger">Cancel</button>
+                    <button type="button" id="confirmAddExam" class="save-btn">Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="templateModal" class="confirm-modal">
+        <div class="confirm-dialog">
+            <p>Template</p>
+            <div class="template-list">
+                <button class="template-btn" data-template="cbse10">
+                    <span class="template-icon">📚</span>
+                    <span class="template-name">CBSE 10th & Below</span>
+                    <span class="template-subjects">English, Maths, Science, 2nd Language, 3rd Language, SST</span>
+                </button>
+                <button class="template-btn" data-template="cbse11">
+                    <span class="template-icon">🎓</span>
+                    <span class="template-name">CBSE 11th & Above</span>
+                    <span class="template-subjects">Physics, Chemistry, Maths, Biology, Computer Science/AI</span>
+                </button>
+                <button class="template-btn" data-template="sat">
+                    <span class="template-icon">📐</span>
+                    <span class="template-name">SAT</span>
+                    <span class="template-subjects">Math, Evidence-Based Reading & Writing</span>
+                </button>
+                <button class="template-btn" data-template="custom">
+                    <span class="template-icon">✏️</span>
+                    <span class="template-name">Custom</span>
+                    <span class="template-subjects">Create your own subjects</span>
+                </button>
+            </div>
+            <div class="confirm-actions">
+                <button type="button" id="cancelTemplate" class="save-btn danger">Cancel</button>
             </div>
         </div>
     </div>

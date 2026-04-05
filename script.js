@@ -1,7 +1,6 @@
 /*
   ALED - JavaScript
 */
-// don't forget the next project, about implenting fsr3 systemwide. please ignore.
 
 const DEFAULT_SUBJECTS = [
     { id: 'english', name: 'English', icon: '\uD83D\uDCD8' },
@@ -14,9 +13,6 @@ const DEFAULT_SUBJECTS = [
 
 const TIMER_URL = 'https://flocus.com/online-flip-clock/';
 const MOTIVATION_URL = 'https://chatgpt.com/share/69a710ee-5b14-8000-8f33-b76daeb57578';
-const STORAGE_KEY = 'currentSubjectId';
-const SUBJECT_ORDER_KEY = 'subjectOrder';
-const SUBJECTS_KEY = 'subjects';
 
 const subjectListEl = document.getElementById('subjectList');
 const subjectViewEl = document.getElementById('subjectView');
@@ -76,6 +72,14 @@ const confirmMessageEl = document.getElementById('confirmMessage');
 const confirmCancelBtn = document.getElementById('confirmCancel');
 const confirmOkBtn = document.getElementById('confirmOk');
 
+const renameModalEl = document.getElementById('renameModal');
+const renameTitleEl = document.getElementById('renameTitle');
+const renameInputEl = document.getElementById('renameInput');
+const renameCancelBtn = document.getElementById('renameCancel');
+const renameOkBtn = document.getElementById('renameOk');
+
+let pendingRenameCallback = null;
+
 let currentSubject = null;
 let currentPortionImages = [];
 let currentWorksheets = [];
@@ -85,7 +89,7 @@ let currentTodos = [];
 let nextSequenceIndex = 0;
 let pendingDeleteCallback = null;
 let selectedSubjectId = null;
-let subjects = loadSubjectsFromStorage();
+let subjects = [];
 let currentIndices = {
     portion: 0,
     worksheet: 0,
@@ -144,6 +148,8 @@ function buildSubjectIconMarkup(icon, subjectName, className = 'subject-icon') {
 }
 
 async function init() {
+    console.log('init called');
+    subjects = await loadSubjectsFromServer();
     if (!selectedSubjectId && subjects.length) {
         selectedSubjectId = subjects[0].id;
     }
@@ -157,21 +163,34 @@ async function init() {
 }
 
 function saveState() {
-    if (currentSubject) {
-        localStorage.setItem(STORAGE_KEY, currentSubject.id);
-    } else {
-        localStorage.removeItem(STORAGE_KEY);
+    saveStateToServer(currentSubject?.id);
+}
+
+async function saveStateToServer(subjectId) {
+    try {
+        await fetch('/api/state/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentSubject: subjectId })
+        });
+    } catch (err) {
+        console.error('Error saving state:', err);
     }
 }
 
 async function restoreState() {
-    const savedSubjectId = localStorage.getItem(STORAGE_KEY);
-    if (!savedSubjectId) return;
-
-    const subject = subjects.find((s) => s.id === savedSubjectId);
-    if (!subject) return;
-
-    await openSubject(subject);
+    try {
+        const response = await fetch('/api/state');
+        const data = await response.json();
+        if (!data.currentSubject) return;
+        
+        const subject = subjects.find((s) => s.id === data.currentSubject);
+        if (!subject) return;
+        
+        await openSubject(subject);
+    } catch (err) {
+        console.error('Error restoring state:', err);
+    }
 }
 
 function renderSubjectList() {
@@ -256,12 +275,17 @@ function renameSubject(index) {
     const subject = subjects[index];
     if (!subject) return;
 
-    const newName = prompt('Enter new name for subject:', subject.name);
-    if (newName && newName.trim()) {
+    renameTitleEl.textContent = 'Rename Subject';
+    renameInputEl.value = subject.name;
+    renameModalEl.classList.add('visible');
+    setTimeout(() => renameInputEl.focus(), 10);
+    
+    pendingRenameCallback = (newName) => {
+        if (!newName || !newName.trim()) return;
         subject.name = newName.trim();
-        saveSubjectsToStorage();
+        saveSubjectsData();
         renderSubjectList();
-    }
+    };
 }
 
 function deleteSubject(index) {
@@ -273,7 +297,6 @@ function deleteSubject(index) {
     confirmModalEl.classList.add('visible');
     
     pendingDeleteCallback = async () => {
-        // First, try to delete the folder on the server
         try {
             await fetch('/api/subjects', {
                 method: 'DELETE',
@@ -284,12 +307,8 @@ function deleteSubject(index) {
             console.error('Failed to delete subject folder:', error);
         }
         
-        // Then remove from local storage and UI
-        subjects.splice(index, 1);
-        saveSubjectOrder();
-        renderSubjectList();
+        await refreshSubjects();
         
-        // If the deleted subject was selected, select another one
         if (subject.id === selectedSubjectId && subjects.length > 0) {
             selectSubject(subjects[0].id);
         }
@@ -550,7 +569,7 @@ function addSubject() {
 
         subjects.push({ id, name, icon });
         saveSubjectOrder();
-        renderSubjectList();
+        await refreshSubjects();
         selectSubject(id);
         isSubmitting = false;
         setSubmittingState(false);
@@ -617,98 +636,88 @@ function addSubject() {
     document.addEventListener('keydown', handleEscape);
 }
 function saveSubjectOrder() {
-    const order = subjects.map((subject) => subject.id);
-    localStorage.setItem(SUBJECT_ORDER_KEY, JSON.stringify(order));
-    // Also save the full subjects data (including names)
-    saveSubjectsToStorage();
+    saveSubjectsData();
 }
 
-function saveSubjectsToStorage() {
-    localStorage.setItem(SUBJECTS_KEY, JSON.stringify(subjects));
-}
-
-function loadSubjectsFromStorage() {
-    // Load saved subjects data first
-    const subjectsRaw = localStorage.getItem(SUBJECTS_KEY);
-    let savedSubjects = null;
-    if (subjectsRaw) {
-        try {
-            savedSubjects = JSON.parse(subjectsRaw);
-        } catch {
-            savedSubjects = null;
-        }
-    }
-    
-    // Load order
-    const orderRaw = localStorage.getItem(SUBJECT_ORDER_KEY);
-    if (orderRaw) {
-        try {
-            const order = JSON.parse(orderRaw);
-            if (savedSubjects) {
-                // Reorder saved subjects based on saved order
-                const subjectMap = new Map(savedSubjects.map(s => [s.id, s]));
-                const orderedSubjects = [];
-                order.forEach(id => {
-                    if (subjectMap.has(id)) {
-                        orderedSubjects.push(subjectMap.get(id));
-                    }
-                });
-                // Add any subjects not in the order
-                savedSubjects.forEach(s => {
-                    if (!order.includes(s.id)) {
-                        orderedSubjects.push(s);
-                    }
-                });
-                return orderedSubjects;
-            } else {
-                // No saved subjects, use order with default subjects
-                const defaultMap = new Map(DEFAULT_SUBJECTS.map(s => [s.id, s]));
-                const orderedSubjects = [];
-                order.forEach(id => {
-                    if (defaultMap.has(id)) {
-                        orderedSubjects.push(defaultMap.get(id));
-                    }
-                });
-                // Add any default subjects not in the order
-                DEFAULT_SUBJECTS.forEach(s => {
-                    if (!order.includes(s.id)) {
-                        orderedSubjects.push(s);
-                    }
-                });
-                return orderedSubjects;
-            }
-        } catch {
-            // If order parsing fails, fall back to saved subjects or defaults
-            return savedSubjects || [...DEFAULT_SUBJECTS];
-        }
-    }
-    
-    // No order saved, use saved subjects or defaults
-    return savedSubjects || [...DEFAULT_SUBJECTS];
-}
-
-function loadSubjectsFromStorage() {
-    const raw = localStorage.getItem(SUBJECT_ORDER_KEY);
-    if (!raw) return [...DEFAULT_SUBJECTS];
-
+async function saveSubjectsData() {
     try {
-        const order = JSON.parse(raw);
-        if (!Array.isArray(order)) return [...DEFAULT_SUBJECTS];
-
-        const map = new Map(DEFAULT_SUBJECTS.map((subject) => [subject.id, subject]));
-        const ordered = [];
-
-        order.forEach((id) => {
-            if (map.has(id)) {
-                ordered.push(map.get(id));
-                map.delete(id);
-            }
+        await fetch('/api/subjects-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subjects: subjects,
+                order: subjects.map(s => s.id)
+            })
         });
+    } catch (err) {
+        console.error('Error saving subjects data:', err);
+    }
+}
 
-        map.forEach((subject) => ordered.push(subject));
+function loadSubjectsFromStorage() {
+    return [];
+}
+
+function loadSubjectsFromStorage() {
+    return [];
+}
+
+async function loadSubjectsFromServer() {
+    try {
+        const response = await fetch('/api/subjects');
+        const serverSubjects = await response.json();
+        
+        const savedResponse = await fetch('/api/subjects-data');
+        const savedData = await savedResponse.json();
+        
+        const savedOrder = savedData.order || [];
+        const savedSubjects = savedData.subjects || [];
+        
+        const savedMap = new Map();
+        savedSubjects.forEach(s => {
+            const key = s.id.toLowerCase();
+            savedMap.set(s.id, s);
+            savedMap.set(key, s);
+        });
+        
+        const defaults = {
+            'English': '📚', 'Maths': '🔢', 'Science': '🔬', 'SST': '🌍',
+            'Hindi': '🇮🇳', 'Kannada': '🇮🇳', 'Physics': '⚛️', 'Chemistry': '🧪',
+            'Biology': '🧬', 'ComputerScience': '💻', 'Math': '🔢', 'Computer': '💻'
+        };
+        
+        if (!serverSubjects || serverSubjects.length === 0) {
+            return savedSubjects;
+        }
+        
+        const map = new Map();
+        serverSubjects.forEach(s => {
+            const normalizedId = s.id.toLowerCase();
+            const saved = savedMap.get(normalizedId) || savedMap.get(s.id);
+            const defaultIcon = defaults[s.id] || defaults[normalizedId] || '📖';
+            s.icon = s.icon || saved?.icon || defaultIcon;
+            map.set(s.id, s);
+        });
+        
+        const ordered = [];
+        savedOrder.forEach(id => {
+            if (map.has(id)) ordered.push(map.get(id));
+        });
+        map.forEach(s => {
+            if (!ordered.includes(s)) ordered.push(s);
+        });
         return ordered;
-    } catch (error) {
-        return [...DEFAULT_SUBJECTS];
+    } catch (err) {
+        console.error('Error loading subjects:', err);
+    }
+    return [];
+}
+
+async function refreshSubjects() {
+    subjects = await loadSubjectsFromServer();
+    renderSubjectList();
+    if (!selectedSubjectId && subjects.length > 0) {
+        selectedSubjectId = subjects[0].id;
     }
 }
 
@@ -791,6 +800,7 @@ function renderPortionImages() {
                     <div class="portion-order-actions">
                         <button class="order-btn" data-index="${index}" data-dir="-1" ${index === 0 ? 'disabled' : ''}>Up</button>
                         <button class="order-btn" data-index="${index}" data-dir="1" ${index === currentPortionImages.length - 1 ? 'disabled' : ''}>Down</button>
+                        <button class="portion-delete-btn" type="button" data-name="${escapeHtml(image.name)}" aria-label="Delete ${escapeHtml(image.name)}" title="Delete image">\u00D7</button>
                     </div>
                 </div>
             </div>
@@ -802,6 +812,14 @@ function renderPortionImages() {
             const index = Number(button.getAttribute('data-index'));
             const dir = Number(button.getAttribute('data-dir'));
             await movePortionImage(index, dir);
+        });
+    });
+
+    portionContentEl.querySelectorAll('.portion-delete-btn').forEach((button) => {
+        button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const imageName = button.getAttribute('data-name');
+            promptDeletePortionImage(imageName);
         });
     });
 }
@@ -832,6 +850,37 @@ async function savePortionOrder() {
     if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
     }
+}
+
+async function deletePortionImage(name) {
+    if (!currentSubject || !name) return;
+
+    try {
+        const response = await fetch('/api/portion-images/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject: currentSubject.id, filename: name })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+
+        portionStatusEl.textContent = 'Image deleted.';
+        await loadPortionImages(currentSubject.id);
+    } catch (error) {
+        console.error('Error deleting portion image:', error);
+        portionStatusEl.textContent = 'Delete failed.';
+    }
+}
+
+function promptDeletePortionImage(name) {
+    if (!name) return;
+    confirmMessageEl.textContent = `Delete "${name}"?`;
+    confirmOkBtn.textContent = 'Delete';
+    confirmModalEl.classList.add('visible');
+    pendingDeleteCallback = () => deletePortionImage(name);
+    setTimeout(() => confirmCancelBtn.focus(), 10);
 }
 
 async function uploadPortionFiles(fileList) {
@@ -2298,6 +2347,451 @@ function setupEventListeners() {
     }
 
     backBtn.addEventListener('click', closeSubjectView);
+    
+    const hamburgerMenu = document.getElementById('hamburgerMenu');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const closeSidebarBtn = document.getElementById('closeSidebar');
+    
+    function openSidebar() {
+        syncExamSidebarSize();
+        sidebar.classList.add('active');
+        sidebarOverlay.classList.add('active');
+        updateSidebarOverlay();
+    }
+    
+    function closeSidebar() {
+        sidebar.classList.remove('active');
+        sidebarOverlay.classList.remove('active');
+        updateSidebarOverlay();
+    }
+    
+    if (hamburgerMenu) {
+        hamburgerMenu.addEventListener('click', openSidebar);
+    }
+    
+    if (closeSidebarBtn) {
+        closeSidebarBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeSidebar();
+        });
+    }
+    
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeSidebar();
+        });
+    }
+    
+    // Sidebar itself should NOT close when clicking inside - only the overlay or close button should
+    sidebar.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+    
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && sidebar && sidebar.classList.contains('active') && !isResizing) {
+            closeSidebar();
+            e.preventDefault();
+        }
+    });
+    
+    // Exams sidebar resize handle
+    const examsResizeHandle = document.getElementById('examsResizeHandle');
+    const EXAMS_SIDEBAR_MIN_RATIO = 0.2;
+    const EXAMS_SIDEBAR_MAX_RATIO = 0.5;
+    const EXAMS_RESIZE_HANDLE_WIDTH = 12;
+    let isResizing = false;
+    let activePointerId = null;
+    let startX = 0;
+    let startWidth = 0;
+
+    const getExamSidebarBounds = () => {
+        const viewportWidth = window.innerWidth || 1200;
+        return {
+            minWidth: Math.floor(viewportWidth * EXAMS_SIDEBAR_MIN_RATIO),
+            maxWidth: Math.floor(viewportWidth * EXAMS_SIDEBAR_MAX_RATIO)
+        };
+    };
+
+    const clampExamSidebarWidth = () => {
+        const { minWidth, maxWidth } = getExamSidebarBounds();
+        const currentWidth = sidebar.getBoundingClientRect().width || maxWidth;
+        const clamped = Math.max(minWidth, Math.min(currentWidth, maxWidth));
+        sidebar.style.width = `${clamped}px`;
+        return clamped;
+    };
+
+    const positionExamsResizeHandle = () => {
+        if (!examsResizeHandle) return;
+        const sidebarWidth = sidebar.getBoundingClientRect().width;
+        examsResizeHandle.style.setProperty('--slide-offset', `${Math.max(0, sidebarWidth)}px`);
+        examsResizeHandle.style.left = `${Math.max(0, sidebarWidth - EXAMS_RESIZE_HANDLE_WIDTH)}px`;
+    };
+
+    const syncExamSidebarSize = () => {
+        clampExamSidebarWidth();
+        positionExamsResizeHandle();
+    };
+
+    const startResize = (event) => {
+        if (event.button !== undefined && event.button !== 0) return;
+        isResizing = true;
+        activePointerId = event.pointerId ?? 'mouse';
+        startX = event.clientX;
+        startWidth = sidebar.getBoundingClientRect().width;
+        if (event.pointerId !== undefined && examsResizeHandle.setPointerCapture) {
+            examsResizeHandle.setPointerCapture(event.pointerId);
+        }
+        document.body.classList.add('is-resizing-sidebar');
+        examsResizeHandle.classList.add('active');
+        event.preventDefault();
+        event.stopPropagation();
+    };
+
+    const doResize = (event) => {
+        if (!isResizing) return;
+        if (event.pointerId !== undefined && event.pointerId !== activePointerId) return;
+        const diff = event.clientX - startX;
+        const { minWidth, maxWidth } = getExamSidebarBounds();
+        const nextWidth = Math.max(minWidth, Math.min(startWidth + diff, maxWidth));
+        sidebar.style.width = `${nextWidth}px`;
+        positionExamsResizeHandle();
+        event.preventDefault();
+    };
+
+    const stopResize = (event) => {
+        if (!isResizing) return;
+        if (event?.pointerId !== undefined && event.pointerId !== activePointerId) return;
+        if (
+            event?.pointerId !== undefined &&
+            examsResizeHandle.hasPointerCapture &&
+            examsResizeHandle.hasPointerCapture(event.pointerId)
+        ) {
+            examsResizeHandle.releasePointerCapture(event.pointerId);
+        }
+        isResizing = false;
+        activePointerId = null;
+        document.body.classList.remove('is-resizing-sidebar');
+        examsResizeHandle.classList.remove('active');
+    };
+
+    if (examsResizeHandle) {
+        syncExamSidebarSize();
+        examsResizeHandle.addEventListener('pointerdown', startResize);
+        examsResizeHandle.addEventListener('pointermove', doResize);
+        examsResizeHandle.addEventListener('pointerup', stopResize);
+        examsResizeHandle.addEventListener('pointercancel', stopResize);
+        window.addEventListener('resize', syncExamSidebarSize);
+    }
+    
+    let currentExamName = '';
+    let exams = [];
+    let currentExam = null;
+    const sidebarContent = document.querySelector('#sidebar .sidebar-content');
+    
+    const addExamBtn = document.getElementById('addExamBtn');
+    const addExamModal = document.getElementById('addExamModal');
+    const newExamNameInput = document.getElementById('newExamName');
+    const cancelAddExamBtn = document.getElementById('cancelAddExam');
+    const confirmAddExamBtn = document.getElementById('confirmAddExam');
+    
+    const templateModal = document.getElementById('templateModal');
+    const cancelTemplateBtn = document.getElementById('cancelTemplate');
+    const templateButtons = document.querySelectorAll('.template-btn');
+    
+    const openTemplateModal = function() {
+        if (templateModal) {
+            templateModal.classList.add('visible');
+        }
+    };
+    
+    const closeTemplateModal = function() {
+        if (templateModal) {
+            templateModal.classList.remove('visible');
+        }
+    };
+    
+    if (cancelTemplateBtn) {
+        cancelTemplateBtn.addEventListener('click', closeTemplateModal);
+    }
+    
+    if (templateModal) {
+        templateModal.addEventListener('click', function(e) {
+            if (e.target === templateModal) closeTemplateModal();
+        });
+    }
+    
+    templateButtons.forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+            const template = btn.dataset.template;
+            try {
+                const response = await fetch('/api/exams', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: currentExamName, template: template })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    await loadExamsList();
+                    closeTemplateModal();
+                    closeAddExamModal();
+                    closeSidebar();
+                } else {
+                    alert(data.error || 'Failed to create exam');
+                }
+            } catch (err) {
+                console.error('Error creating exam:', err);
+                alert('Error creating exam');
+            }
+        });
+    });
+    
+    const openAddExamModal = function() {
+        if (addExamModal) {
+            addExamModal.classList.add('visible');
+            if (newExamNameInput) newExamNameInput.focus();
+        }
+    };
+    
+    const closeAddExamModal = function() {
+        if (addExamModal) {
+            addExamModal.classList.remove('visible');
+            if (newExamNameInput) newExamNameInput.value = '';
+        }
+    };
+    
+    if (addExamBtn) {
+        addExamBtn.addEventListener('click', openAddExamModal);
+    }
+    
+    if (cancelAddExamBtn) {
+        cancelAddExamBtn.addEventListener('click', closeAddExamModal);
+    }
+    
+    if (confirmAddExamBtn) {
+        confirmAddExamBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const examName = newExamNameInput?.value.trim();
+            if (examName) {
+                currentExamName = examName;
+                closeAddExamModal();
+                openTemplateModal();
+            } else {
+                alert('Please enter an exam name');
+            }
+        });
+    }
+    
+    function renderExamsList() {
+        if (!sidebarContent) return;
+
+        sidebarContent.innerHTML = '';
+        if (!exams.length) {
+            sidebarContent.innerHTML = '<p class="no-data">No exams available</p>';
+            return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        exams.forEach((exam, index) => {
+            const examItem = document.createElement('div');
+            examItem.className = 'exam-item';
+            examItem.dataset.exam = exam.name;
+            examItem.addEventListener('click', () => window.switchExam(exam.name));
+
+            const examInfo = document.createElement('div');
+            examInfo.className = 'exam-info';
+
+            const examNameEl = document.createElement('span');
+            examNameEl.className = `exam-name${exam.name === currentExam ? ' active' : ''}`;
+            examNameEl.textContent = exam.name;
+
+            const subjectsCount = document.createElement('span');
+            subjectsCount.className = 'exam-subjects-count';
+            const count = Array.isArray(exam.subjects) ? exam.subjects.length : 0;
+            subjectsCount.textContent = `${count} subjects`;
+
+            examInfo.appendChild(examNameEl);
+            examInfo.appendChild(subjectsCount);
+
+            const actions = document.createElement('div');
+            actions.className = 'exam-actions';
+
+            const editActions = document.createElement('div');
+            editActions.className = 'exam-edit-actions';
+
+            const renameBtn = document.createElement('button');
+            renameBtn.className = 'exam-action-btn rename';
+            renameBtn.title = 'Rename';
+            renameBtn.textContent = '\u270F\uFE0F';
+            renameBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                window.renameExam(exam.name);
+            });
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'exam-action-btn delete';
+            deleteBtn.title = 'Delete';
+            deleteBtn.textContent = '\uD83D\uDDD1\uFE0F';
+            deleteBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                window.deleteExam(exam.name);
+            });
+
+            editActions.appendChild(renameBtn);
+            editActions.appendChild(deleteBtn);
+
+            const moveActions = document.createElement('div');
+            moveActions.className = 'exam-move-actions';
+
+            const moveUpBtn = document.createElement('button');
+            moveUpBtn.className = 'exam-move-btn';
+            moveUpBtn.setAttribute('aria-label', 'Move up');
+            moveUpBtn.textContent = '\u25B2';
+            moveUpBtn.disabled = index === 0;
+            moveUpBtn.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                await moveExam(index, -1);
+            });
+
+            const moveDownBtn = document.createElement('button');
+            moveDownBtn.className = 'exam-move-btn';
+            moveDownBtn.setAttribute('aria-label', 'Move down');
+            moveDownBtn.textContent = '\u25BC';
+            moveDownBtn.disabled = index === exams.length - 1;
+            moveDownBtn.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                await moveExam(index, 1);
+            });
+
+            moveActions.appendChild(moveUpBtn);
+            moveActions.appendChild(moveDownBtn);
+
+            actions.appendChild(editActions);
+            actions.appendChild(moveActions);
+
+            examItem.appendChild(examInfo);
+            examItem.appendChild(actions);
+            fragment.appendChild(examItem);
+        });
+
+        sidebarContent.appendChild(fragment);
+    }
+
+    async function saveExamOrder() {
+        const response = await fetch('/api/exams/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order: exams.map((exam) => exam.name) })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to reorder exams');
+        }
+    }
+
+    async function moveExam(index, direction) {
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= exams.length) return null;
+
+        const next = [...exams];
+        const [moved] = next.splice(index, 1);
+        next.splice(targetIndex, 0, moved);
+        exams = next;
+        renderExamsList();
+
+        try {
+            await saveExamOrder();
+        } catch (err) {
+            console.error('Error reordering exams:', err);
+            await loadExamsList();
+            alert('Could not save exam order.');
+        }
+
+        return targetIndex;
+    }
+
+    async function loadExamsList() {
+        try {
+            const response = await fetch('/api/exams');
+            const data = await response.json();
+            exams = Array.isArray(data.exams) ? data.exams : [];
+            currentExam = data.currentExam || null;
+            renderExamsList();
+        } catch (err) {
+            console.error('Error loading exams:', err);
+        }
+    }
+
+    window.switchExam = async function(examName) {
+        try {
+            const response = await fetch('/api/exam/set-current', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ exam: examName })
+            });
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            }
+        } catch (err) {
+            console.error('Error switching exam:', err);
+        }
+    };
+    
+    window.renameExam = async function(examName) {
+        renameTitleEl.textContent = 'Rename Exam';
+        renameInputEl.value = examName;
+        renameModalEl.classList.add('visible');
+        setTimeout(() => renameInputEl.focus(), 10);
+        
+        pendingRenameCallback = async (newName) => {
+            if (!newName || newName === examName) return;
+            try {
+                const response = await fetch('/api/exam/rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ oldName: examName, newName: newName })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    loadExamsList();
+                } else {
+                    alert(data.error || 'Failed to rename exam');
+                }
+            } catch (err) {
+                console.error('Error renaming exam:', err);
+            }
+        };
+    };
+    
+    window.deleteExam = async function(examName) {
+        confirmMessageEl.textContent = `Delete exam "${examName}"? All data will be lost.`;
+        confirmOkBtn.textContent = 'Delete';
+        confirmModalEl.classList.add('visible');
+        
+        pendingDeleteCallback = async () => {
+            try {
+                const response = await fetch('/api/exam', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ exam: examName })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    loadExamsList();
+                } else {
+                    alert(data.error || 'Failed to delete exam');
+                }
+            } catch (err) {
+                console.error('Error deleting exam:', err);
+            }
+        };
+        setTimeout(() => confirmCancelBtn.focus(), 10);
+    };
+    
+    loadExamsList();
+    
     uploadPortionBtn.addEventListener('click', () => {
         if (!currentSubject) return;
         portionFileInput.click();
@@ -2463,7 +2957,10 @@ function setupEventListeners() {
         learningMaterialFileInput.value = '';
     });
     togglePdfBtn.addEventListener('click', togglePdfSidebar);
-    closeSidebarBtn.addEventListener('click', closePdfSidebar);
+    const closePdfSidebarBtn = document.getElementById('closePdfSidebarBtn');
+    if (closePdfSidebarBtn) {
+        closePdfSidebarBtn.addEventListener('click', closePdfSidebar);
+    }
     if (uploadGlobalPortionBtn && globalPortionFileInput) {
         uploadGlobalPortionBtn.addEventListener('click', () => {
             globalPortionFileInput.click();
@@ -2477,9 +2974,13 @@ function setupEventListeners() {
     if (portionSequenceViewerEl) {
         portionSequenceViewerEl.addEventListener('scroll', maybeAppendNextPortion);
     }
+    
+    // Add click handler for overlay to close all sidebars
     sidebarOverlayEl.addEventListener('click', () => {
+        closeSidebar();
         closePdfSidebar();
         closePreview();
+        closeTimerSidebar();
     });
     
     // Preview sidebar events
@@ -2505,13 +3006,6 @@ function setupEventListeners() {
         }
     });
     timerFullscreenBtn.addEventListener('click', toggleFullscreenTimer);
-    
-    // Add timer sidebar to overlay click
-    sidebarOverlayEl.addEventListener('click', () => {
-        closePdfSidebar();
-        closePreview();
-        closeTimerSidebar();
-    });
     
     // Show controls when mouse is near them
     document.addEventListener('mousemove', (e) => {
@@ -2920,15 +3414,9 @@ function setupEventListeners() {
     // Confirm dialog keyboard navigation
     confirmModalEl.addEventListener('keydown', (e) => {
         if (!confirmModalEl.classList.contains('visible')) return;
+        e.stopPropagation();
 
-        if (e.key === 'Tab') {
-            e.preventDefault();
-            if (document.activeElement === confirmCancelBtn) {
-                confirmOkBtn.focus();
-            } else {
-                confirmCancelBtn.focus();
-            }
-        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (e.key === 'Tab' || e.key.startsWith('Arrow')) {
             e.preventDefault();
             if (document.activeElement === confirmCancelBtn) {
                 confirmOkBtn.focus();
@@ -2949,7 +3437,70 @@ function setupEventListeners() {
         }
     });
 
+    // Rename modal handlers
+    renameCancelBtn.addEventListener('click', () => {
+        renameModalEl.classList.remove('visible');
+        pendingRenameCallback = null;
+    });
+    renameOkBtn.addEventListener('click', () => {
+        if (pendingRenameCallback) {
+            pendingRenameCallback(renameInputEl.value);
+        }
+        renameModalEl.classList.remove('visible');
+        pendingRenameCallback = null;
+    });
+    renameModalEl.addEventListener('click', (e) => {
+        if (e.target === renameModalEl) {
+            renameModalEl.classList.remove('visible');
+            pendingRenameCallback = null;
+        }
+    });
+    renameModalEl.addEventListener('keydown', (e) => {
+        if (!renameModalEl.classList.contains('visible')) return;
+        e.stopPropagation();
+        
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            renameModalEl.classList.remove('visible');
+            pendingRenameCallback = null;
+        } else if (e.key === '/') {
+            e.preventDefault();
+            renameInputEl.focus();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (document.activeElement === renameInputEl) {
+                renameOkBtn.focus();
+            } else if (document.activeElement === renameOkBtn) {
+                if (pendingRenameCallback) {
+                    pendingRenameCallback(renameInputEl.value);
+                }
+                renameModalEl.classList.remove('visible');
+                pendingRenameCallback = null;
+            } else if (document.activeElement === renameCancelBtn) {
+                renameModalEl.classList.remove('visible');
+                pendingRenameCallback = null;
+            }
+        } else if (e.key === 'Tab' || e.key.startsWith('Arrow')) {
+            e.preventDefault();
+            if (document.activeElement === renameCancelBtn) {
+                renameOkBtn.focus();
+            } else {
+                renameCancelBtn.focus();
+            }
+        }
+    });
+
     document.addEventListener('keydown', (e) => {
+        // If confirm dialog is open, don't handle any other keys
+        if (confirmModalEl.classList.contains('visible')) {
+            return;
+        }
+        
+        // If rename dialog is open, don't handle any other keys
+        if (renameModalEl.classList.contains('visible')) {
+            return;
+        }
+        
         // If quote modal is open, handle it exclusively
         const quoteModal = document.getElementById('quoteModal');
         if (quoteModal && quoteModal.classList.contains('visible')) {
@@ -2973,13 +3524,6 @@ function setupEventListeners() {
         }
 
         if (e.key === 'Escape') {
-            // If confirm dialog is open, close it
-            if (confirmModalEl.classList.contains('visible')) {
-                confirmModalEl.classList.remove('visible');
-                pendingDeleteCallback = null;
-                return;
-            }
-            
             // If preview is in fullscreen, just exit fullscreen instead of closing
             if (previewSidebarEl.classList.contains('fullscreen')) {
                 toggleFullscreenPreview();
@@ -3397,7 +3941,8 @@ function clampPreviewSidebarWidth() {
 }
 
 function updateSidebarOverlay() {
-    const hasOpenSidebar = pdfSidebarEl.classList.contains('open') 
+    const hasOpenSidebar = sidebar?.classList.contains('active')
+        || pdfSidebarEl.classList.contains('open') 
         || previewSidebarEl.classList.contains('open')
         || timerSidebarEl.classList.contains('open');
     sidebarOverlayEl.classList.toggle('visible', hasOpenSidebar);
