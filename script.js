@@ -2588,7 +2588,12 @@ function setupEventListeners() {
 
         sidebarContent.innerHTML = '';
         if (!exams.length) {
-            sidebarContent.innerHTML = '<p class="no-data">No exams available</p>';
+            sidebarContent.innerHTML = `
+                <div class="exam-empty-state">
+                    <p class="no-data">No exams yet.</p>
+                    <p class="exam-empty-help">Click "Add Exams" below, choose a template, and create your first exam.</p>
+                </div>
+            `;
             return;
         }
 
