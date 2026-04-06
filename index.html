@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALED</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h2 class="sidebar-title">Exams</h2>
+            <button id="closeSidebar" class="close-sidebar-btn" aria-label="Close">&times;</button>
+        </div>
+        <div class="sidebar-content">
+            <p class="no-data">No exams yet.</p>
+        </div>
+        <div class="sidebar-footer">
+            <button id="addExamBtn" class="add-exam-btn">Add Exams</button>
+        </div>
+    </aside>
+    <div class="sidebar-resize-handle" id="examsResizeHandle"></div>
+
+    <header class="header">
+        <div class="header-left">
+            <button id="backBtn" class="back-btn-header" style="display: none;">&larr;</button>
+            <div class="hamburger-wrapper">
+                <button id="hamburgerMenu" class="hamburger-btn" aria-label="Menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+            <h1 class="header-title">ALED</h1>
+        </div>
+        <div class="header-buttons">
+            <button id="togglePdfBtn" class="top-btn">📄 Portion</button>
+            <button id="timerBtn" class="top-btn">⏱️ Timer</button>
+            <button id="motivationBtn" class="top-btn">💡 Motivation</button>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <section id="subjectPanel">
+            <h2 id="subjectPanelTitle" class="section-title">
+                Select Subject
+                <button id="addSubjectBtn" class="add-subject-btn" title="Add new subject" aria-label="Add new subject">+</button>
+            </h2>
+            <div id="noExamState" class="no-exam-state" style="display: none;">
+                <p class="no-exam-message">No exam selected.</p>
+                <p class="no-exam-help">Open the Exams sidebar and click "Add Exams" to create one.</p>
+            </div>
+            <div id="subjectList" class="subject-list"></div>
+        </section>
+
+        <section id="subjectView" class="subject-view">
+            <div class="subject-header">
+                <h2 id="currentSubjectTitle" class="subject-title"></h2>
+            </div>
+
+            <div class="section-container" tabindex="0" id="portionSection">
+                <div class="section-title-bar">
+                    <h3 class="subsection-title">Portion</h3>
+                    <div class="portion-actions">
+                        <button id="uploadPortionBtn" class="small-btn">Upload Screenshots</button>
+                        <span id="portionStatus" class="portion-status"></span>
+                    </div>
+                </div>
+                <div id="portionContent" class="portion-list"></div>
+                <input id="portionFileInput" type="file" accept="image/*" multiple hidden>
+            </div>
+
+            <div class="section-container" tabindex="0" id="worksheetSection">
+                <div class="section-title-bar">
+                    <h3 class="subsection-title">Worksheets</h3>
+                    <div class="portion-actions">
+                        <button id="uploadWorksheetBtn" class="small-btn">Upload Files</button>
+                        <span id="worksheetStatus" class="save-status"></span>
+                    </div>
+                </div>
+                <div id="worksheetsList" class="worksheet-list"></div>
+                <input id="worksheetFileInput" type="file" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp" multiple hidden>
+            </div>
+
+            <div class="section-container" tabindex="0" id="planSection">
+                <div class="section-title-bar">
+                    <h3 class="subsection-title">My Study Plan</h3>
+                </div>
+                <textarea id="planEditor" class="plan-editor" placeholder="Write your study plan here..."></textarea>
+                <div class="plan-actions">
+                    <button id="savePlanBtn" class="save-btn">Save</button>
+                    <span id="saveStatus" class="save-status"></span>
+                </div>
+            </div>
+
+            <div class="section-container" tabindex="0" id="learningMaterialSection">
+                <div class="section-title-bar">
+                    <h3 class="subsection-title">Learning Material</h3>
+                    <div class="portion-actions">
+                        <button id="addLearningMaterialBtn" class="small-btn">+ Add files or links</button>
+                    </div>
+                </div>
+                <div id="learningMaterialList" class="learning-material-list"></div>
+                <input id="learningMaterialFileInput" type="file" accept="video/*,audio/*,application/pdf,.md,.txt,image/*" multiple hidden>
+            </div>
+
+            <div class="section-container" tabindex="0" id="todoSection">
+                <div class="section-title-bar">
+                    <h3 class="subsection-title">To-Do</h3>
+                    <div class="portion-actions">
+                        <button id="addTodoBtn" class="small-btn">+ Add Task</button>
+                    </div>
+                </div>
+                <div id="todoList" class="todo-list"></div>
+                <div id="todoInputContainer" class="todo-input-container" style="display: none;">
+                    <input id="todoInput" type="text" class="todo-input" placeholder="Type a task and press Enter (use @ to reference files)...">
+                    <div id="todoAutocomplete" class="todo-autocomplete"></div>
+                    <button id="submitTodoBtn" class="submit-todo-btn" title="Add task">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 21L23 12L2 3V10L17 12L2 14V21Z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <aside id="pdfSidebar" class="pdf-sidebar">
+        <div class="resize-handle"></div>
+        <div class="sidebar-header">
+            <h3>Portions</h3>
+            <div class="sidebar-header-actions">
+                <button id="uploadGlobalPortionBtn" class="small-btn" title="Upload files">+</button>
+                <button id="closePdfSidebarBtn" class="close-sidebar-btn">&times;</button>
+            </div>
+        </div>
+        <span id="globalPortionStatus" class="portion-status"></span>
+        <div id="portionSequenceViewer" class="portion-sequence-viewer"></div>
+        <input id="globalPortionFileInput" type="file" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,.mp4,.webm,.ogg,.mov,.avi,.mp3,.wav,.flac,.m4a" multiple hidden>
+    </aside>
+
+    <aside id="previewSidebar" class="preview-sidebar">
+        <div class="resize-handle-preview"></div>
+        <div class="sidebar-header">
+            <h3 id="previewTitle">Preview</h3>
+            <div class="preview-header-buttons">
+                <button id="fullscreenPreviewBtn" class="icon-btn" title="Fullscreen"></button>
+                <button id="closePreviewBtn" class="close-sidebar-btn">&times;</button>
+            </div>
+        </div>
+        <div id="previewContent" class="preview-content"></div>
+    </aside>
+
+    <aside id="timerSidebar" class="timer-sidebar">
+        <div class="resize-handle-timer"></div>
+        <div class="sidebar-header">
+            <h3>Timer ⏰</h3>
+            <div class="sidebar-header-actions">
+                <button id="closeTimerBtn" class="close-sidebar-btn">&times;</button>
+            </div>
+        </div>
+        <div class="timer-content">
+            <div class="flip-clock">
+                <div class="flip-digit hours-group" data-digit="hour-tens" style="display: none;">
+                    <div class="digit-static">
+                        <div class="digit-top"><span>0</span></div>
+                        <div class="digit-bottom"><span>0</span></div>
+                    </div>
+                    <div class="flip-card" style="display: none;">
+                        <div class="flip-card-top"><span>0</span></div>
+                        <div class="flip-card-bottom"><span>0</span></div>
+                    </div>
+                </div>
+                <div class="flip-digit hours-group" data-digit="hour-ones" style="display: none;">
+                    <div class="digit-static">
+                        <div class="digit-top"><span>0</span></div>
+                        <div class="digit-bottom"><span>0</span></div>
+                    </div>
+                    <div class="flip-card" style="display: none;">
+                        <div class="flip-card-top"><span>0</span></div>
+                        <div class="flip-card-bottom"><span>0</span></div>
+                    </div>
+                </div>
+                <div class="flip-separator hours-group" style="display: none;">:</div>
+                <div class="flip-digit" data-digit="minute-tens">
+                    <div class="digit-static">
+                        <div class="digit-top"><span>0</span></div>
+                        <div class="digit-bottom"><span>0</span></div>
+                    </div>
+                    <div class="flip-card" style="display: none;">
+                        <div class="flip-card-top"><span>0</span></div>
+                        <div class="flip-card-bottom"><span>0</span></div>
+                    </div>
+                </div>
+                <div class="flip-digit" data-digit="minute-ones">
+                    <div class="digit-static">
+                        <div class="digit-top"><span>0</span></div>
+                        <div class="digit-bottom"><span>0</span></div>
+                    </div>
+                    <div class="flip-card" style="display: none;">
+                        <div class="flip-card-top"><span>0</span></div>
+                        <div class="flip-card-bottom"><span>0</span></div>
+                    </div>
+                </div>
+                <div class="flip-separator">:</div>
+                <div class="flip-digit" data-digit="second-tens">
+                    <div class="digit-static">
+                        <div class="digit-top"><span>0</span></div>
+                        <div class="digit-bottom"><span>0</span></div>
+                    </div>
+                    <div class="flip-card" style="display: none;">
+                        <div class="flip-card-top"><span>0</span></div>
+                        <div class="flip-card-bottom"><span>0</span></div>
+                    </div>
+                </div>
+                <div class="flip-digit" data-digit="second-ones">
+                    <div class="digit-static">
+                        <div class="digit-top"><span>0</span></div>
+                        <div class="digit-bottom"><span>0</span></div>
+                    </div>
+                    <div class="flip-card" style="display: none;">
+                        <div class="flip-card-top"><span>0</span></div>
+                        <div class="flip-card-bottom"><span>0</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="timer-controls" id="timerControls">
+                <div class="timer-buttons">
+                    <button id="timerStartBtn" class="timer-start-btn">Start</button>
+                    <button id="timerResetBtn" class="timer-reset-btn" style="display: none;">Reset</button>
+                </div>
+                <div class="timer-settings">
+                    <div class="timer-setting-row">
+                        <label for="timerDuration">Timer Duration (minutes):</label>
+                        <input type="number" id="timerDuration" min="1" max="1440" value="5" class="timer-input">
+                    </div>
+                </div>
+                <div class="timer-footer">
+                    <button id="timerFullscreenBtn" class="timer-icon-btn" title="Fullscreen">⛶</button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <div id="confirmModal" class="confirm-modal">
+        <div class="confirm-dialog">
+            <p id="confirmMessage">Are you sure?</p>
+            <div class="confirm-actions">
+                <button id="confirmCancel" class="save-btn">Cancel</button>
+                <button id="confirmOk" class="save-btn danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="renameModal" class="confirm-modal">
+        <div class="confirm-dialog">
+            <p id="renameTitle">Rename</p>
+            <input type="text" id="renameInput" class="todo-input" placeholder="Enter new name...">
+            <div class="confirm-actions">
+                <button id="renameCancel" class="save-btn danger">Cancel</button>
+                <button id="renameOk" class="save-btn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="addSubjectModal" class="confirm-modal">
+        <div class="confirm-dialog">
+            <p>Add New Subject</p>
+            <div class="add-subject-form">
+                <input type="text" id="newSubjectName" class="todo-input" placeholder="Subject name...">
+                <div class="icon-input-container">
+                    <input type="text" id="newSubjectIcon" class="todo-input" placeholder="Icon (emoji or code)">
+                    <button type="button" id="uploadIconBtn" class="small-btn" title="Upload Icon Image">Upload</button>
+                    <input type="file" id="iconFileInput" accept="image/*" hidden>
+                    <div id="iconPreview" class="icon-preview"></div>
+                </div>
+                <div class="confirm-actions">
+                    <button type="button" id="cancelAddSubject" class="save-btn">Cancel</button>
+                    <button type="button" id="confirmAddSubject" class="save-btn">Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="addExamModal" class="confirm-modal">
+        <div class="confirm-dialog">
+            <p>Add New Exam</p>
+            <div class="add-exam-form">
+                <input type="text" id="newExamName" class="todo-input" placeholder="Name...">
+                <div class="confirm-actions">
+                    <button type="button" id="cancelAddExam" class="save-btn danger">Cancel</button>
+                    <button type="button" id="confirmAddExam" class="save-btn">Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="templateModal" class="confirm-modal">
+        <div class="confirm-dialog">
+            <p>Template</p>
+            <div class="template-list">
+                <button class="template-btn" data-template="cbse10">
+                    <span class="template-icon">📚</span>
+                    <span class="template-name">CBSE 10th & Below</span>
+                    <span class="template-subjects">English, Maths, Science, 2nd Language, 3rd Language, SST</span>
+                </button>
+                <button class="template-btn" data-template="cbse11">
+                    <span class="template-icon">🎓</span>
+                    <span class="template-name">CBSE 11th & Above</span>
+                    <span class="template-subjects">Physics, Chemistry, Maths, Biology, Computer Science/AI</span>
+                </button>
+                <button class="template-btn" data-template="sat">
+                    <span class="template-icon">📐</span>
+                    <span class="template-name">SAT</span>
+                    <span class="template-subjects">Math, Evidence-Based Reading & Writing</span>
+                </button>
+                <button class="template-btn" data-template="custom">
+                    <span class="template-icon">✏️</span>
+                    <span class="template-name">Custom</span>
+                    <span class="template-subjects">Create your own subjects</span>
+                </button>
+            </div>
+            <div class="confirm-actions">
+                <button type="button" id="cancelTemplate" class="save-btn danger">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="quoteModal" class="confirm-modal">
+        <div class="confirm-dialog quote-dialog">
+            <p id="quoteText" class="quote-text"></p>
+            <div class="quote-actions">
+                <button id="newQuoteBtn" class="save-btn">New Quote</button>
+                <button id="closeQuoteBtn" class="save-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="learningMaterialModal" class="confirm-modal">
+        <div class="confirm-dialog">
+            <p>Add Learning Material</p>
+            <div class="learning-material-form">
+                <label>Link or file:</label>
+                <div class="link-or-file-row">
+                    <button type="button" id="addLearningMaterialFileBtn" class="small-btn">+ Add files</button>
+                    <input type="text" id="learningMaterialUrl" class="todo-input" placeholder="Or enter URL">
+                    <input type="file" id="learningMaterialFileInputModal" accept="video/*,audio/*,application/pdf,.md,.txt,image/*" multiple hidden>
+                </div>
+                <label>Name:</label>
+                <input type="text" id="learningMaterialName" class="todo-input" placeholder="Enter name">
+                <div class="confirm-actions">
+                    <button id="cancelLearningMaterial" class="save-btn">Cancel</button>
+                    <button id="addLearningMaterialConfirm" class="save-btn">Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        ALED
+    </footer>
+
+    <script src="data/quotes.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
