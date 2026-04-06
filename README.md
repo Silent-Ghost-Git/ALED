@@ -6,7 +6,7 @@ This project is completly vibe coded and idk anything about JS
 
 This is the source code for the Electron release for windows. To compile it you must first clone the repo ->
 ``` 
-$ git clone https://github.com/Silent-Ghost-Git/ALED.git
+git clone --single-branch --branch Release-windows https://github.com/Silent-Ghost-Git/ALED.git
 ``` 
 Then you should run `npm install` for installing the dependencies ->
 ```
