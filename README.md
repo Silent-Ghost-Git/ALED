@@ -3,7 +3,7 @@
 This project is completly vibe coded and idk anything about JS
 <br><br><hr>
 ## How to install
-I have not released the build yet, for now you may clone the repo by ->
+There is a build available for windows, which you can check in the `Releases`. To install the web version, you must first clone the repo ->
 ``` 
 git clone https://github.com/Silent-Ghost-Git/ALED.git
 ``` 
